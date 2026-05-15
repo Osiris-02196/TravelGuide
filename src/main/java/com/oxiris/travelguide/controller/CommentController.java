@@ -1,9 +1,11 @@
 package com.oxiris.travelguide.controller;
 
 import com.mybatisflex.core.paginate.Page;
+import com.oxiris.travelguide.annotation.StatusCheck;
 import com.oxiris.travelguide.common.BaseResponse;
 import com.oxiris.travelguide.common.ErrorCode;
 import com.oxiris.travelguide.common.ResultUtils;
+import com.oxiris.travelguide.constant.UserConstant;
 import com.oxiris.travelguide.exception.ThrowUtils;
 import com.oxiris.travelguide.model.dto.comment.CommentAddRequest;
 import com.oxiris.travelguide.model.dto.comment.CommentQueryRequest;
@@ -31,6 +33,7 @@ public class CommentController {
      * @return 评论ID
      */
     @PostMapping("/add")
+    @StatusCheck(allowedStatus = UserConstant.NORMAL) // 只有正常状态的用户可以添加评论
     public BaseResponse<Long> addComment(@RequestBody CommentAddRequest commentAddRequest,
                                          HttpServletRequest request) {
         ThrowUtils.throwIf(commentAddRequest == null, ErrorCode.PARAMS_ERROR);

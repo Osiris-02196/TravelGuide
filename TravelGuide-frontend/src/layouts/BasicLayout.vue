@@ -106,7 +106,7 @@
       <!-- Content -->
       <main class="main-content">
         <router-view v-slot="{ Component }">
-          <keep-alive :include="['home']">
+          <keep-alive :include="['HomePage']">
             <component :is="Component" />
           </keep-alive>
         </router-view>

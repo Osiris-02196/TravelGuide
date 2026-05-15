@@ -35,6 +35,10 @@ myAxios.interceptors.response.use(
         window.location.href = `/user/login?redirect=${window.location.href}`
       }
     }
+    // 封号/禁言等禁止访问 — 显示后端返回的具体原因，不跳转
+    if (data.code === 40300) {
+      message.error(data.message || '账号已被封禁')
+    }
     return response
   },
   function (error) {

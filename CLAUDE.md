@@ -49,46 +49,32 @@ npm run type-check    # TypeScript check only (vue-tsc)
 npm run openapi2ts    # Regenerate API typings from Knife4j OpenAPI spec
 ```
 
-## Project Structure
+## Project Structure (high-level)
 
 ```
-TravelGuide/
+TravelGuide/                          # Spring Boot backend (port 8082, /api/*)
 ├── src/main/java/com/oxiris/travelguide/
-│   ├── ai/                    # LangChain4j AI service (TravelAiService + Factory)
-│   ├── annotation/            # Custom annotations (@AuthCheck, @StatusCheck)
-│   ├── aop/                   # AOP interceptors (AuthInterceptor, StatusInterceptor)
-│   ├── common/                # Shared: BaseResponse, ErrorCode, ResultUtils, PageRequest
-│   ├── config/                # Spring configs (CORS, COS, WebSocket, ChatModel, RedisChatMemoryStore)
-│   ├── constant/              # Constants (user roles, file config)
-│   ├── controller/            # REST controllers (8 total — User, Strategy, Comment, Location, Notify, Follow, TravelAi, AiChatSession)
-│   ├── exception/             # BusinessException + GlobalExceptionHandler + ThrowUtils
-│   ├── generator/             # MyBatis-Flex code generator
-│   ├── manager/               # CosManager (Tencent COS file upload abstraction)
-│   ├── mapper/                # MyBatis-Flex Mapper interfaces + XML under resources/mapper/
-│   ├── model/
-│   │   ├── dto/               # Request DTOs (grouped by domain)
-│   │   ├── entity/            # DB entity classes
-│   │   ├── enums/             # Enums (UserRole, UserStatus)
-│   │   └── vo/                # View Objects (response wrappers)
-│   ├── service/               # Service interfaces + impl/
-│   └── websocket/             # WebSocket handler (NotifyWebSocketHandler)
+│   ├── ai/                           # LangChain4j AI service
+│   ├── annotation/ + aop/            # @AuthCheck, @StatusCheck + interceptors
+│   ├── common/                       # BaseResponse, ErrorCode, ResultUtils, PageRequest, DeleteRequest
+│   ├── config/                       # CORS, COS, WebSocket, ChatModel, RedisChatMemory
+│   ├── controller/ → service/ → mapper/   # 8 REST controllers, 8 service impls
+│   ├── model/{dto,entity,enums,vo}   # Request DTOs, entities, enums, view objects
+│   ├── manager/                      # CosManager (Tencent COS upload)
+│   ├── websocket/                    # NotifyWebSocketHandler
+│   └── generator/                    # MyBatis-Flex code generator (run-and-forget)
 ├── src/main/resources/
-│   ├── mapper/                # MyBatis-Flex XML mappers
-│   ├── prompt/                # AI system prompt (AiChat-prompt.txt)
-│   ├── application.yml        # Main config — DB, Redis, session 30d, AI (DeepSeek), server port 8082
-│   └── application-local.yml  # Local overrides (COS credentials, AI API key) — gitignored
-├── sql/                       # Database schema (create_table.sql)
-└── TravelGuide-frontend/
+│   ├── mapper/ + prompt/             # XML mappers + AI system prompt
+│   ├── application.yml               # DB, Redis, session 30d, DeepSeek config
+│   └── application-local.yml         # Local secrets (COS + API key) — gitignored
+├── sql/                              # Database schema (create_table.sql)
+└── TravelGuide-frontend/             # Vue 3 + Vite (port 5173, /api/* proxied)
     └── src/
-        ├── api/               # Axios API wrappers (auto-generated via openapi2ts + manual additions)
-        ├── components/        # Shared components (NotifyBell, AI chat components)
-        ├── layouts/           # BasicLayout (sidebar + header + content area)
-        ├── pages/             # Page components organized as user/, admin/, and root-level
-        ├── router/            # Vue Router — layout-based routing through BasicLayout
-        ├── stores/            # Pinia stores (loginUser, aiChat, notify)
-        ├── request.ts         # Axios instance with interceptors + 40100 redirect
-        ├── App.vue            # Root — auto-fetches login user on mount
-        └── main.ts            # App entry point
+        ├── api/                      # Axios wrappers (openapi2ts + manual)
+        ├── components/ + layouts/    # NotifyBell, AI chat, BasicLayout
+        ├── pages/                    # HomePage, StrategyDetail, admin/, user/
+        ├── stores/                   # Pinia: loginUser, aiChat, notify
+        └── request.ts + router/      # Axios instance + Vue Router
 ```
 
 ## Key Architecture Patterns
@@ -151,11 +137,7 @@ Error codes in `ErrorCode.java`. Common codes: `40000` (params), `40100` (not lo
 - All API functions use the shared `request.ts` Axios instance with `withCredentials: true` for session cookie
 
 ### UI Pattern: Strategy Card List
-Strategy lists are rendered as `.strategy-card-horizontal` cards. The card HTML/CSS pattern is **duplicated independently** across 5 pages (HomePage, LocationStrategiesPage, MyStrategiesPage, UserProfilePage, AllStrategiesPage) rather than extracted into a shared component. Each page has its own scoped CSS. The homepage is the reference design with:
-- Card width: 680px (homepage) / responsive max-width 720px (other pages), border-radius 12px
-- Thumbnails: 200×200px, 3 per row, gap 24px
-- Hover: box-shadow lift + translateY(-2px) animation
-- Structure: user row → title → summary → images → tags row → location + stats row
+Strategy lists are rendered as `.strategy-card-horizontal` cards. The card HTML/CSS pattern is **duplicated independently** across 5 pages (HomePage, LocationStrategiesPage, MyStrategiesPage, UserProfilePage, AllStrategiesPage) rather than extracted into a shared component. Each page has its own scoped CSS. The homepage is the reference design — card structure: user row → title → summary → images → tags → location + stats row.
 
 ### AI Chat
 - `TravelAiService` interface annotated with LangChain4j `@SystemMessage` / `@MemoryId`

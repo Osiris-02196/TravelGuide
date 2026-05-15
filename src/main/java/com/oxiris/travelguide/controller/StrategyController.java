@@ -2,6 +2,7 @@ package com.oxiris.travelguide.controller;
 
 import com.mybatisflex.core.paginate.Page;
 import com.oxiris.travelguide.annotation.AuthCheck;
+import com.oxiris.travelguide.annotation.StatusCheck;
 import com.oxiris.travelguide.common.BaseResponse;
 import com.oxiris.travelguide.common.ErrorCode;
 import com.oxiris.travelguide.common.ResultUtils;
@@ -50,6 +51,7 @@ public class StrategyController {
      * @return 攻略ID
      */
     @PostMapping("/add")
+    @StatusCheck(allowedStatus = UserConstant.NORMAL) // 只有正常状态的用户可以上传攻略
     public BaseResponse<Long> addStrategy(@RequestBody StrategyAddRequest strategyAddRequest,
                                           HttpServletRequest request) {
         ThrowUtils.throwIf(strategyAddRequest == null, ErrorCode.PARAMS_ERROR);
@@ -77,6 +79,7 @@ public class StrategyController {
      * @return 分页攻略VO
      */
     @PostMapping("/list/passed")
+    @StatusCheck(allowedStatus = {UserConstant.NORMAL, UserConstant.MUTED}) //允许正常和禁言的状态的用户访问
     public BaseResponse<Page<StrategyVO>> listPassedStrategies(@RequestBody StrategyQueryRequest strategyQueryRequest) {
         ThrowUtils.throwIf(strategyQueryRequest == null, ErrorCode.PARAMS_ERROR);
         Page<StrategyVO> result = strategyService.listPassedStrategies(strategyQueryRequest);

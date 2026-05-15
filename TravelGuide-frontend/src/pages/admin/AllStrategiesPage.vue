@@ -109,7 +109,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { message } from 'ant-design-vue'
 import { HeartOutlined, MessageOutlined, EnvironmentOutlined } from '@ant-design/icons-vue'
 import { useRouter } from 'vue-router'
@@ -145,7 +145,31 @@ function displayUserName(item: API.StrategyVO): string {
   return item.userId != null && item.userId !== undefined ? `用户${item.userId}` : '用户'
 }
 
-onMounted(() => fetchData())
+const SCROLL_KEY = 'AllStrategies_scrollTop'
+
+onBeforeUnmount(() => {
+  const el = document.querySelector('.main-content')
+  if (el) sessionStorage.setItem(SCROLL_KEY, String(el.scrollTop))
+})
+
+function restoreScroll() {
+  try {
+    const saved = sessionStorage.getItem(SCROLL_KEY)
+    if (saved && Number(saved) > 0) {
+      nextTick(() => {
+        const el = document.querySelector('.main-content')
+        if (el) el.scrollTop = Number(saved)
+      })
+    }
+  } finally {
+    sessionStorage.removeItem(SCROLL_KEY)
+  }
+}
+
+onMounted(async () => {
+  await fetchData()
+  restoreScroll()
+})
 
 async function fetchData(page = 1) {
   loading.value = true

@@ -91,4 +91,9 @@ const router = createRouter({
   },
 })
 
+// 禁止浏览器原生滚动恢复，交由 Vue Router scrollBehavior 接管
+if ('scrollRestoration' in history) {
+  history.scrollRestoration = 'manual'
+}
+
 export default router

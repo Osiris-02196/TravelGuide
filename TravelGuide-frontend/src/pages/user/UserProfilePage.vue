@@ -11,6 +11,9 @@
         />
         <div class="profile-name">{{ profileUser.userName || '未设置昵称' }}</div>
         <div class="profile-account">账号：{{ profileUser.userAccount }}</div>
+        <div v-if="userStatusInfo" class="profile-status">
+          <a-tag :color="userStatusInfo.color">{{ userStatusInfo.label }}</a-tag>
+        </div>
 
         <!-- Follow stats -->
         <div class="follow-stats">
@@ -106,7 +109,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { HeartOutlined, MessageOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
@@ -145,6 +148,20 @@ const profileUser = ref<API.UserVO>({
   userAvatar: '',
 })
 
+const STATUS_MAP: Record<number, { label: string; color: string }> = {
+  1: { label: '正常', color: 'green' },
+  2: { label: '禁言', color: 'orange' },
+  3: { label: '封号', color: 'red' },
+}
+
+const userStatusInfo = computed(() => {
+  const status = profileUser.value?.userStatus
+  if (status !== undefined && status !== null && STATUS_MAP[status]) {
+    return STATUS_MAP[status]
+  }
+  return null
+})
+
 // Follow state
 const isFollowed = ref(false)
 const followCount = ref(0)
@@ -159,9 +176,31 @@ const strategyPage = ref(1)
 const strategyPageSize = 20
 const strategyTotal = ref(0)
 
+const SCROLL_KEY = 'UserProfile_scrollTop'
+
+onBeforeUnmount(() => {
+  const el = document.querySelector('.main-content')
+  if (el) sessionStorage.setItem(SCROLL_KEY, String(el.scrollTop))
+})
+
+function restoreScroll() {
+  try {
+    const saved = sessionStorage.getItem(SCROLL_KEY)
+    if (saved && Number(saved) > 0) {
+      nextTick(() => {
+        const el = document.querySelector('.main-content')
+        if (el) el.scrollTop = Number(saved)
+      })
+    }
+  } finally {
+    sessionStorage.removeItem(SCROLL_KEY)
+  }
+}
+
 onMounted(async () => {
   await loadProfile()
   await fetchStrategies()
+  restoreScroll()
 })
 
 watch(() => route.params.userId, async () => {
@@ -179,6 +218,7 @@ async function loadProfile() {
         userAccount: user.userAccount,
         userName: user.userName,
         userAvatar: user.userAvatar,
+        userStatus: user.userStatus,
       }
       // Load follow counts for self too
       if (user.id) {
@@ -365,6 +405,10 @@ function handleImgError(e: Event) {
 .profile-account {
   font-size: 13px;
   color: #999;
+  margin-bottom: 8px;
+}
+
+.profile-status {
   margin-bottom: 12px;
 }
 

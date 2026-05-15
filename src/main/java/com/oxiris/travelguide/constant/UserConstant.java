@@ -30,7 +30,14 @@ public interface UserConstant {
     /**
      * 被封号
      */
-    String BAN_ROLE = "ban";
-
+    String BANNED = "3";
+    /**
+     * 被禁言
+     */
+    String MUTED = "2";
+    /**
+     * 正常
+     */
+    String NORMAL = "1";
     // endregion
 }

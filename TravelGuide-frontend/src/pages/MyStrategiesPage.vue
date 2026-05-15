@@ -120,7 +120,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { HeartOutlined, StarOutlined, EnvironmentOutlined } from '@ant-design/icons-vue'
 import { listMyStrategies, deleteStrategy, listUserCollectStrategies, uncollectStrategy } from '@/api/strategyController'
@@ -138,7 +138,31 @@ const total = ref(0)
 
 const defaultAvatar = 'https://api.dicebear.com/7.x/initials/svg?seed=User'
 
-onMounted(() => fetchData())
+const SCROLL_KEY = 'MyStrategies_scrollTop'
+
+onBeforeUnmount(() => {
+  const el = document.querySelector('.main-content')
+  if (el) sessionStorage.setItem(SCROLL_KEY, String(el.scrollTop))
+})
+
+function restoreScroll() {
+  try {
+    const saved = sessionStorage.getItem(SCROLL_KEY)
+    if (saved && Number(saved) > 0) {
+      nextTick(() => {
+        const el = document.querySelector('.main-content')
+        if (el) el.scrollTop = Number(saved)
+      })
+    }
+  } finally {
+    sessionStorage.removeItem(SCROLL_KEY)
+  }
+}
+
+onMounted(async () => {
+  await fetchData()
+  restoreScroll()
+})
 
 function displayAvatar(item: any): string {
   const url = item.userAvatar?.trim()

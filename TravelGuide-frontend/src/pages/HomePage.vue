@@ -120,7 +120,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, onActivated, onDeactivated, nextTick, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { HeartOutlined, MessageOutlined, EnvironmentOutlined } from '@ant-design/icons-vue'
 import { listPassedStrategies, listHotStrategies } from '@/api/strategyController'
@@ -151,6 +151,35 @@ onMounted(() => {
     activeTag.value = tag
   }
   fetchData()
+})
+
+// 滚动位置管理：在页面活跃时持续跟踪 .main-content 的滚动位置，
+// 返回时可恢复到离开时的位置
+let mainScrollTop = 0
+
+function onMainScroll() {
+  const el = document.querySelector('.main-content')
+  if (el) mainScrollTop = el.scrollTop
+}
+
+onActivated(() => {
+  // 页面被激活时，开始跟踪滚动位置
+  const el = document.querySelector('.main-content')
+  if (el) el.addEventListener('scroll', onMainScroll, { passive: true })
+
+  // 在 DOM 布局完成后恢复到离开时的滚动位置
+  if (mainScrollTop > 0) {
+    nextTick(() => {
+      const scrollEl = document.querySelector('.main-content')
+      if (scrollEl) scrollEl.scrollTop = mainScrollTop
+    })
+  }
+})
+
+onDeactivated(() => {
+  // 离开时停止跟踪（避免干扰其他页面的滚动）
+  const el = document.querySelector('.main-content')
+  if (el) el.removeEventListener('scroll', onMainScroll)
 })
 
 // 监听搜索关键词变化（路由查询参数变化时重新拉取数据）

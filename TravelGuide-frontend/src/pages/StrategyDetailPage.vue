@@ -81,8 +81,8 @@
             <div v-if="comments.length > 0">
               <div v-for="c in comments" :key="c.id" class="comment-item">
                 <div class="comment-item-header">
-                  <img :src="c.userAvatar || defaultAvatar" alt="avatar" class="comment-avatar" />
-                  <span class="comment-item-name">{{ c.userName || '匿名用户' }}</span>
+                  <img :src="c.userAvatar || defaultAvatar" alt="avatar" class="comment-avatar" @click="goToUserProfile(c.userId)" />
+                  <span class="comment-item-name" @click="goToUserProfile(c.userId)">{{ c.userName || '匿名用户' }}</span>
                   <span class="comment-item-time">
                     {{ c.createTime ? dayjs(c.createTime).format('YYYY-MM-DD HH:mm') : '' }}
                   </span>
@@ -371,6 +371,12 @@ function goToAuthorProfile() {
     router.push(`/user/${userId}/profile`)
   }
 }
+
+function goToUserProfile(userId: string | number | undefined) {
+  if (userId !== undefined && userId !== null) {
+    router.push(`/user/${userId}/profile`)
+  }
+}
 </script>
 
 <style scoped>
@@ -639,6 +645,7 @@ function goToAuthorProfile() {
   object-fit: cover;
   background: #f0f0f0;
   flex-shrink: 0;
+  cursor: pointer;
 }
 
 .comment-item-name {
@@ -646,6 +653,11 @@ function goToAuthorProfile() {
   color: #333;
   font-weight: 500;
   flex-shrink: 0;
+  cursor: pointer;
+}
+
+.comment-item-name:hover {
+  color: #ff6b6b;
 }
 
 .comment-item-time {

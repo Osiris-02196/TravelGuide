@@ -163,7 +163,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { HeartOutlined, MessageOutlined, EnvironmentOutlined } from '@ant-design/icons-vue'
 import { listStrategiesByLocation } from '@/api/strategyController'
@@ -208,14 +208,35 @@ function displayUserName(item: API.StrategyVO): string {
   return item.userId != null && item.userId !== undefined ? `用户${item.userId}` : '用户'
 }
 
-function reloadLists() {
+async function reloadLists() {
   currentPage.value = 1
-  fetchOfficial()
-  fetchData(1)
+  await Promise.all([fetchOfficial(), fetchData(1)])
 }
 
-onMounted(() => {
-  reloadLists()
+const SCROLL_KEY = 'LocStrategies_scrollTop'
+
+onBeforeUnmount(() => {
+  const el = document.querySelector('.main-content')
+  if (el) sessionStorage.setItem(SCROLL_KEY, String(el.scrollTop))
+})
+
+function restoreScroll() {
+  try {
+    const saved = sessionStorage.getItem(SCROLL_KEY)
+    if (saved && Number(saved) > 0) {
+      nextTick(() => {
+        const el = document.querySelector('.main-content')
+        if (el) el.scrollTop = Number(saved)
+      })
+    }
+  } finally {
+    sessionStorage.removeItem(SCROLL_KEY)
+  }
+}
+
+onMounted(async () => {
+  await reloadLists()
+  restoreScroll()
 })
 
 watch(
