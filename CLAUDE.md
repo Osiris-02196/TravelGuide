@@ -8,7 +8,7 @@ A full-stack "Travel Guide" (旅游攻略) application with a Spring Boot backen
 
 ## Tech Stack
 
-- **Backend**: Spring Boot 3.5, Java 21, Maven, MyBatis-Flex ORM, MySQL, Redis (session + AI chat memory)
+- **Backend**: Spring Boot 3.5.14, Java 21, Maven, MyBatis-Flex ORM, MySQL, Redis (session + AI chat memory)
 - **Frontend**: Vue 3 (Composition API), TypeScript 5.8, Vite 7, Ant Design Vue 4.x, Pinia, Vue Router 4
 - **AI**: LangChain4j 1.12.x + DeepSeek API (OpenAI-compatible), Redis-backed chat memory via `MessageWindowChatMemory` (last 20 messages)
 - **Infrastructure**: WebSocket (notifications), Tencent COS (file storage), Knife4j (API docs)
@@ -58,7 +58,7 @@ TravelGuide/                          # Spring Boot backend (port 8082, /api/*)
 │   ├── annotation/ + aop/            # @AuthCheck, @StatusCheck + interceptors
 │   ├── common/                       # BaseResponse, ErrorCode, ResultUtils, PageRequest, DeleteRequest
 │   ├── config/                       # CORS, COS, WebSocket, ChatModel, RedisChatMemory
-│   ├── controller/ → service/ → mapper/   # 8 REST controllers, 8 service impls
+│   ├── controller/ → service/ → mapper/   # 9 REST controllers (User, Strategy, Comment, Location, Follow, Notify, TravelAi, AiChatSession, Report)
 │   ├── model/{dto,entity,enums,vo}   # Request DTOs, entities, enums, view objects
 │   ├── manager/                      # CosManager (Tencent COS upload)
 │   ├── websocket/                    # NotifyWebSocketHandler
@@ -93,7 +93,7 @@ Error codes in `ErrorCode.java`. Common codes: `40000` (params), `40100` (not lo
 ### Authentication & Authorization
 - Session-based auth stored in Redis (`spring-session-data-redis`), 30-day timeout
 - `@AuthCheck(mustRole = {...})` annotation on admin endpoints, enforced by `AuthInterceptor` AOP
-- `@StatusCheck` annotation checks user status (normal/banned/suspended), enforced by `StatusInterceptor` AOP
+- `@StatusCheck(allowedStatus = {...})` annotation checks user status (normal/banned/suspended), enforced by `StatusInterceptor` AOP. Accepts an array of allowed statuses — e.g., `allowedStatus = {UserConstant.NORMAL, UserConstant.MUTED}` allows both normal and muted users
 - Roles: `user` (default), `admin`, `superadmin`
 - User statuses: `1` (正常), `2` (禁言), `3` (封号)
 - Current user retrieved via `UserService.getLoginUser(request)` from session
@@ -125,6 +125,8 @@ Error codes in `ErrorCode.java`. Common codes: `40000` (params), `40100` (not lo
 | `/admin/pending-strategies` | PendingStrategies | Admin: review pending strategies (table view) |
 | `/admin/users` | UserManage | Admin: manage users |
 | `/admin/all-strategies` | AllStrategies | Admin: all strategies with set-official actions |
+| `/my-reports` | MyReports | User's own report submissions |
+| `/admin/reports` | ReportReview | Admin: review pending reports (accept/reject) |
 
 ### Frontend State Management (Pinia — Composition API style)
 - `loginUserStore` — stores `LoginUserVO`, provides `isLoggedIn`/`isAdmin` computed refs, auto-fetches on mount
@@ -153,17 +155,26 @@ Strategy lists are rendered as `.strategy-card-horizontal` cards. The card HTML/
 - Created server-side in service methods (like/comment/collect) and pushed via WebSocket
 - Frontend `notifyStore` receives WebSocket push with `{ type: "unreadCount", count: N }` — unread count is refreshed by re-fetching the list
 - `NotifyBell` component in the layout header shows unread badge
+- `ReportDialog` component provides a modal for users to submit reports (select reason + description) on strategies or comments
 
 ### WebSocket
 - Spring WebSocket config at `/ws/notify/{userId}` via `NotifyWebSocketHandler`
 - Frontend `notifyStore` auto-connects when user logs in; uses `localhost:8082` in DEV mode, `window.location.host` in production
 - Connection lifecycle: connect on login, disconnect on logout
 
+### Report System
+- Users can report strategies or comments for reasons: `EROTIC`, `ADVERTISING`, `PERSONAL_ATTACK`, `ILLEGAL`, `FALSE_INFO`, `PLAGIARISM`, `OTHER`
+- Report status flow: `pending` → admin reviews → `approved` (举报成立) / `rejected` (举报驳回)
+- Endpoints under `/api/report`: user-facing `POST /add`, `POST /list/my`, `GET /detail/{id}`; admin `POST /admin/list/pending`, `PUT /admin/review/{id}`
+- Admin review can apply action against the reported content author (e.g., mute or ban) alongside the report verdict
+- Frontend: `ReportDialog.vue` (report submission modal), `MyReportsPage.vue` (user's report history), `ReportReviewPage.vue` (admin review queue)
+
 ### User Follow System
 - Unidirectional: user A follows user B (no mutual-friend concept)
 - Table `user_follow`: followerId → followedUserId with unique constraint
 - Only supports user-to-user following (not strategy/bookmark following)
 - Follow counts stored by counting rows in `user_follow`
+- REST endpoints under `/api/follow`: `POST /{followedUserId}` (toggle), `GET /check/{followedUserId}`, `GET /following/{userId}`, `GET /followers/{userId}`, `GET /count/{userId}`
 
 ### Image Handling
 - Images uploaded to Tencent COS via `CosManager` (abstracted behind `CosClientConfig`)
@@ -172,7 +183,7 @@ Strategy lists are rendered as `.strategy-card-horizontal` cards. The card HTML/
 - Locations stored similarly as JSON array string in `locations` column
 
 ### Database
-Tables: user, strategy, location, comment, strategy_like, strategy_collect, comment_like, strategy_location, notify, ai_chat_session, ai_chat_message, user_follow
+Tables: user, strategy, location, comment, strategy_like, strategy_collect, comment_like, strategy_location, notify, ai_chat_session, ai_chat_message, user_follow, report
 
 ### Application Configuration
 - `application.yml` — base config (DB, Redis, session 30d, AI model, server port 8082, context-path `/api`)

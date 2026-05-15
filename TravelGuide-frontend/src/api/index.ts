@@ -5,8 +5,10 @@
 import * as strategyController from './strategyController'
 import * as userController from './userController'
 import * as locationController from './locationController'
+import * as reportController from './reportController'
 export default {
   strategyController,
   userController,
   locationController,
+  reportController,
 }

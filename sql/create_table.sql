@@ -173,6 +173,26 @@ CREATE TABLE ai_chat_message (
 ) COMMENT='AI聊天消息表'
     COLLATE = utf8mb4_unicode_ci;
 
+CREATE TABLE report (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '举报ID',
+    reporterId BIGINT NOT NULL COMMENT '举报人ID',
+    targetType VARCHAR(20) NOT NULL COMMENT '举报类型（strategy/comment）',
+    targetId BIGINT NOT NULL COMMENT '被举报对象ID',
+    reportedUserId BIGINT NOT NULL COMMENT '被举报用户ID',
+    reason VARCHAR(50) NOT NULL COMMENT '举报原因',
+    description VARCHAR(500) DEFAULT NULL COMMENT '举报详细说明',
+    status VARCHAR(20) NOT NULL DEFAULT 'pending' COMMENT '举报状态（pending/approved/rejected）',
+    reviewRemark VARCHAR(500) DEFAULT NULL COMMENT '管理员审核说明',
+    reviewAdminId BIGINT DEFAULT NULL COMMENT '审核管理员ID',
+    reviewTime DATETIME DEFAULT NULL COMMENT '审核时间',
+    createTime DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX idx_reporterId (reporterId),
+    INDEX idx_reportedUserId (reportedUserId),
+    INDEX idx_status (status),
+    INDEX idx_createTime (createTime)
+) COMMENT='举报表'
+    COLLATE = utf8mb4_unicode_ci;
+
 
 
 

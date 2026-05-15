@@ -4,6 +4,16 @@
       <!-- Sticky top bar: back button only -->
       <div class="detail-top-bar">
         <LeftOutlined class="back-arrow" @click="goBack" />
+        <a-dropdown v-if="loginUserStore.isLoggedIn && detail" trigger="click">
+          <MoreOutlined class="more-icon" />
+          <template #overlay>
+            <a-menu>
+              <a-menu-item key="report" @click="handleReportStrategy">
+                举报
+              </a-menu-item>
+            </a-menu>
+          </template>
+        </a-dropdown>
       </div>
 
       <!-- Scrollable content area -->
@@ -80,7 +90,7 @@
 
             <div v-if="comments.length > 0">
               <div v-for="c in comments" :key="c.id" class="comment-item">
-                <div class="comment-item-header">
+                <div :id="`comment-${c.id}`" class="comment-item-header">
                   <img :src="c.userAvatar || defaultAvatar" alt="avatar" class="comment-avatar" @click="goToUserProfile(c.userId)" />
                   <span class="comment-item-name" @click="goToUserProfile(c.userId)">{{ c.userName || '匿名用户' }}</span>
                   <span class="comment-item-time">
@@ -90,6 +100,16 @@
                     <HeartOutlined :style="{ color: c._liked ? '#ff4d4f' : '#ccc' }" />
                     {{ c.likeCount || 0 }}
                   </span>
+                  <a-dropdown v-if="loginUserStore.isLoggedIn" trigger="click">
+                    <MoreOutlined class="comment-more-icon" />
+                    <template #overlay>
+                      <a-menu>
+                        <a-menu-item key="report" @click="handleReportComment(c)">
+                          举报
+                        </a-menu-item>
+                      </a-menu>
+                    </template>
+                  </a-dropdown>
                 </div>
                 <div class="comment-item-content">{{ c.content }}</div>
               </div>
@@ -135,16 +155,20 @@
         </div>
       </div>
     </div>
+
+    <!-- 举报弹窗 -->
+    <ReportDialog ref="reportDialogRef" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { HeartOutlined, StarOutlined, LeftOutlined, RightOutlined } from '@ant-design/icons-vue'
+import { HeartOutlined, StarOutlined, LeftOutlined, RightOutlined, MoreOutlined } from '@ant-design/icons-vue'
 import { getStrategyDetail, likeStrategy, collectStrategy } from '@/api/strategyController'
 import { addComment, listComments, likeComment } from '@/api/commentController'
 import { useLoginUserStore } from '@/stores/loginUser'
+import ReportDialog from '@/components/ReportDialog.vue'
 import dayjs from 'dayjs'
 import { message } from 'ant-design-vue'
 
@@ -164,6 +188,8 @@ const comments = ref<API.CommentVO[]>([])
 const commentSort = ref<string>('createTime')
 const commentPage = ref(1)
 const commentTotal = ref(0)
+
+const reportDialogRef = ref<InstanceType<typeof ReportDialog> | null>(null)
 
 const defaultAvatar = 'https://api.dicebear.com/7.x/initials/svg?seed=User'
 
@@ -188,6 +214,18 @@ onMounted(async () => {
   if (!idStr) return
   await fetchDetail(idStr)
   await fetchComments(idStr)
+  // 如果 URL 携带 commentId 参数，滚动到对应评论
+  const commentId = route.query.commentId
+  if (commentId) {
+    setTimeout(() => {
+      const el = document.getElementById(`comment-${commentId}`)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        el.style.background = '#fffbe6'
+        setTimeout(() => { el.style.background = '' }, 3000)
+      }
+    }, 500)
+  }
 })
 
 async function fetchDetail(id: string) {
@@ -361,6 +399,20 @@ function nextImage() {
     currentImageIndex.value < allImages.value.length - 1 ? currentImageIndex.value + 1 : 0
 }
 
+function handleReportStrategy() {
+  if (!detail.value?.id || !detail.value?.userId) return
+  reportDialogRef.value?.open(
+    'strategy',
+    Number(detail.value.id),
+    Number(detail.value.userId),
+  )
+}
+
+function handleReportComment(c: API.CommentVO) {
+  if (!c.id || !c.userId) return
+  reportDialogRef.value?.open('comment', Number(c.id), Number(c.userId))
+}
+
 function goBack() {
   router.back()
 }
@@ -408,6 +460,9 @@ function goToUserProfile(userId: string | number | undefined) {
   padding: 10px 16px;
   border-bottom: 1px solid #f0f0f0;
   background: #fff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .back-arrow {
@@ -416,6 +471,32 @@ function goToUserProfile(userId: string | number | undefined) {
   cursor: pointer;
   display: inline-block;
   line-height: 1;
+}
+
+.more-icon {
+  font-size: 20px;
+  color: #999;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+.more-icon:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.comment-more-icon {
+  font-size: 16px;
+  color: #ccc;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.comment-more-icon:hover {
+  background: #f0f0f0;
+  color: #666;
 }
 
 /* ===== Scrollable Content ===== */

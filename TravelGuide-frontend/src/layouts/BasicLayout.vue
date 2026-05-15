@@ -24,10 +24,18 @@
             <PlusCircleOutlined />
             <span>新建攻略</span>
           </router-link>
+          <router-link v-if="!loginUserStore.isAdmin" to="/my-reports">
+            <WarningOutlined />
+            <span>举报</span>
+          </router-link>
           <template v-if="loginUserStore.isAdmin">
             <router-link to="/admin/pending-strategies">
               <AuditOutlined />
               <span>待审核攻略</span>
+            </router-link>
+            <router-link to="/admin/reports">
+              <AlertOutlined />
+              <span>举报审核</span>
             </router-link>
             <router-link to="/admin/users">
               <TeamOutlined />
@@ -130,6 +138,8 @@ import {
   UserOutlined,
   LogoutOutlined,
   RobotOutlined,
+  WarningOutlined,
+  AlertOutlined,
 } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { listProvinces, listCities } from '@/api/locationController'

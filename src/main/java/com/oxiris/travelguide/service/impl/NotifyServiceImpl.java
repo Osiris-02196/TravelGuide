@@ -116,6 +116,18 @@ public class NotifyServiceImpl extends ServiceImpl<NotifyMapper, Notify> impleme
         } else if ("pending".equals(type)) {
             // 管理员待审核通知
             content.append(senderName).append("的攻略待审核");
+        } else if ("violation".equals(type)) {
+            // 违规通知
+            if (targetType != null && targetType == 1) {
+                content.append("你发布的攻略因违规被删除");
+            } else if (targetType != null && targetType == 2) {
+                content.append("你发布的评论因违规被删除");
+            } else {
+                content.append("你发布的内容因违规被删除");
+            }
+        } else if ("report_result".equals(type)) {
+            // 举报审核结果通知
+            content.append("你的举报审核结果已更新");
         } else {
             content.append("你收到一条新消息");
         }

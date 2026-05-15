@@ -424,6 +424,76 @@ declare namespace API {
     message?: string
   }
 
+  // ===== 举报相关类型 =====
+  type ReportAddRequest = {
+    targetType?: string
+    targetId?: number
+    reportedUserId?: number
+    reason?: string
+    description?: string
+  }
+
+  type ReportQueryRequest = {
+    pageNum?: number
+    pageSize?: number
+    sortField?: string
+    sortOrder?: string
+    reporterId?: number
+    targetType?: string
+    status?: string
+  }
+
+  type ReportReviewRequest = {
+    status?: string
+    reviewRemark?: string
+  }
+
+  type ReportVO = {
+    id?: string | number
+    reporterId?: string | number
+    reporterName?: string
+    targetType?: string
+    targetId?: string | number
+    reportedUserId?: string | number
+    reportedUserName?: string
+    reason?: string
+    description?: string
+    status?: string
+    targetContent?: string
+    strategyId?: string | number
+    strategyTitle?: string
+    reviewRemark?: string
+    reviewAdminId?: string | number
+    reviewAdminName?: string
+    reviewTime?: string
+    createTime?: string
+  }
+
+  type PageReportVO = {
+    records?: ReportVO[]
+    pageNumber?: number
+    pageSize?: number
+    totalPage?: number
+    totalRow?: number
+    optimizeCountQuery?: boolean
+  }
+
+  type BaseResponsePageReportVO = {
+    code?: number
+    data?: PageReportVO
+    message?: string
+  }
+
+  type BaseResponseReportVO = {
+    code?: number
+    data?: ReportVO
+    message?: string
+  }
+
+  type reviewReportParams = {
+    id: string | number
+  }
+
   // ===== AI 会话相关类型 =====
   type AiChatSession = {
     id: number

@@ -66,6 +66,16 @@ const routes: RouteRecordRaw[] = [
         name: 'allStrategies',
         component: () => import('@/pages/admin/AllStrategiesPage.vue'),
       },
+      {
+        path: 'my-reports',
+        name: 'myReports',
+        component: () => import('@/pages/report/MyReportsPage.vue'),
+      },
+      {
+        path: 'admin/reports',
+        name: 'reportReview',
+        component: () => import('@/pages/admin/ReportReviewPage.vue'),
+      },
     ],
   },
   {
