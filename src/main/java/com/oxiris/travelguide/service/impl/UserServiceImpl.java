@@ -11,6 +11,7 @@ import com.oxiris.travelguide.exception.BusinessException;
 import com.oxiris.travelguide.exception.ThrowUtils;
 import com.oxiris.travelguide.manager.CosManager;
 import com.oxiris.travelguide.model.dto.user.UpdateUserStatusRequest;
+import com.oxiris.travelguide.model.dto.user.UserUpdatePasswordRequest;
 import com.oxiris.travelguide.model.dto.user.UserQueryRequest;
 import com.oxiris.travelguide.model.dto.user.UserUpdateProfileRequest;
 import com.oxiris.travelguide.model.entity.User;
@@ -278,6 +279,41 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>  implements U
         // 5. 保存到数据库
         boolean result = this.updateById(loginUser);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "修改个人资料失败");
+        return true;
+    }
+
+    @Override
+    public Boolean updatePassword(UserUpdatePasswordRequest updatePasswordRequest, HttpServletRequest request) {
+        // 1. 校验参数
+        ThrowUtils.throwIf(updatePasswordRequest == null, ErrorCode.PARAMS_ERROR);
+        String oldPassword = updatePasswordRequest.getOldPassword();
+        String newPassword = updatePasswordRequest.getNewPassword();
+        String checkPassword = updatePasswordRequest.getCheckPassword();
+        if (StrUtil.hasBlank(oldPassword, newPassword, checkPassword)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数为空");
+        }
+        if (newPassword.length() < 8) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "新密码长度不能小于8位");
+        }
+        if (!newPassword.equals(checkPassword)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "两次输入的新密码不一致");
+        }
+        // 2. 获取当前登录用户
+        User loginUser = getLoginUser(request);
+        // 3. 校验旧密码
+        String encryptOldPassword = getEncryptPassword(oldPassword);
+        if (!encryptOldPassword.equals(loginUser.getUserPassword())) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "原密码错误");
+        }
+        // 4. 新旧密码不能相同
+        if (oldPassword.equals(newPassword)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "新密码不能与旧密码相同");
+        }
+        // 5. 加密新密码并保存
+        String encryptNewPassword = getEncryptPassword(newPassword);
+        loginUser.setUserPassword(encryptNewPassword);
+        boolean result = this.updateById(loginUser);
+        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "修改密码失败");
         return true;
     }
 

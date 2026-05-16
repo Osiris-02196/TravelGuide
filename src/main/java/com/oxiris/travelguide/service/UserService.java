@@ -3,6 +3,7 @@ package com.oxiris.travelguide.service;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.core.service.IService;
 import com.oxiris.travelguide.model.dto.user.UpdateUserStatusRequest;
+import com.oxiris.travelguide.model.dto.user.UserUpdatePasswordRequest;
 import com.oxiris.travelguide.model.dto.user.UserUpdateProfileRequest;
 import com.oxiris.travelguide.model.dto.user.UserQueryRequest;
 import com.oxiris.travelguide.model.entity.User;
@@ -114,4 +115,13 @@ public interface UserService extends IService<User> {
      * @return 是否成功
      */
     Boolean updateUserProfile(UserUpdateProfileRequest updateProfileRequest, HttpServletRequest request);
+
+    /**
+     * 修改当前登录用户的密码
+     *
+     * @param updatePasswordRequest 修改密码请求
+     * @param request               HTTP请求
+     * @return 是否成功
+     */
+    Boolean updatePassword(UserUpdatePasswordRequest updatePasswordRequest, HttpServletRequest request);
 }

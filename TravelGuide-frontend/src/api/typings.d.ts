@@ -427,8 +427,8 @@ declare namespace API {
   // ===== 举报相关类型 =====
   type ReportAddRequest = {
     targetType?: string
-    targetId?: number
-    reportedUserId?: number
+    targetId?: string | number
+    reportedUserId?: string | number
     reason?: string
     description?: string
   }

@@ -403,14 +403,14 @@ function handleReportStrategy() {
   if (!detail.value?.id || !detail.value?.userId) return
   reportDialogRef.value?.open(
     'strategy',
-    Number(detail.value.id),
-    Number(detail.value.userId),
+    detail.value.id,
+    detail.value.userId,
   )
 }
 
 function handleReportComment(c: API.CommentVO) {
   if (!c.id || !c.userId) return
-  reportDialogRef.value?.open('comment', Number(c.id), Number(c.userId))
+  reportDialogRef.value?.open('comment', c.id, c.userId)
 }
 
 function goBack() {

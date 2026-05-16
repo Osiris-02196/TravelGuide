@@ -40,10 +40,10 @@ const description = ref('')
 const reasons = ['色情低俗', '广告营销', '人身攻击', '违法违规', '虚假信息', '抄袭搬运', '其他']
 
 let pendingTargetType = ''
-let pendingTargetId: number | null = null
-let pendingReportedUserId: number | null = null
+let pendingTargetId: number | string | null = null
+let pendingReportedUserId: number | string | null = null
 
-function open(targetType: string, targetId: number, reportedUserId: number) {
+function open(targetType: string, targetId: number | string, reportedUserId: number | string) {
   pendingTargetType = targetType
   pendingTargetId = targetId
   pendingReportedUserId = reportedUserId

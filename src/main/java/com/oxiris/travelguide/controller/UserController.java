@@ -260,4 +260,15 @@ public class UserController {
         return ResultUtils.success(result);
     }
 
+    /**
+     * 修改当前登录用户密码
+     */
+    @PostMapping("/update/password")
+    public BaseResponse<Boolean> updatePassword(@RequestBody UserUpdatePasswordRequest updatePasswordRequest,
+                                                 HttpServletRequest request) {
+        ThrowUtils.throwIf(updatePasswordRequest == null, ErrorCode.PARAMS_ERROR);
+        Boolean result = userService.updatePassword(updatePasswordRequest, request);
+        return ResultUtils.success(result);
+    }
+
 }

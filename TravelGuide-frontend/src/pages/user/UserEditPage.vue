@@ -36,6 +36,66 @@
           </a-space>
         </a-form-item>
       </a-form>
+
+      <a-divider />
+
+      <h3 style="margin-bottom: 24px; font-size: 18px">修改密码</h3>
+      <a-form
+        :model="passwordFormState"
+        @finish="handlePasswordSubmit"
+      >
+        <a-form-item
+          label="原密码"
+          name="oldPassword"
+          :rules="[{ required: true, message: '请输入原密码' }]"
+        >
+          <a-input-password
+            v-model:value="passwordFormState.oldPassword"
+            placeholder="请输入原密码"
+          />
+        </a-form-item>
+
+        <a-form-item
+          label="新密码"
+          name="newPassword"
+          :rules="[
+            { required: true, message: '请输入新密码' },
+            { min: 8, message: '密码长度不能小于8位' },
+          ]"
+        >
+          <a-input-password
+            v-model:value="passwordFormState.newPassword"
+            placeholder="请输入新密码（至少8位）"
+          />
+        </a-form-item>
+
+        <a-form-item
+          label="确认新密码"
+          name="checkPassword"
+          :rules="[
+            { required: true, message: '请再次输入新密码' },
+            {
+              validator: async (_rule, value) => {
+                if (!value || value === passwordFormState.newPassword) {
+                  return
+                }
+                throw new Error('两次输入的新密码不一致')
+              },
+            },
+          ]"
+        >
+          <a-input-password
+            v-model:value="passwordFormState.checkPassword"
+            placeholder="请再次输入新密码"
+          />
+        </a-form-item>
+
+        <a-form-item>
+          <a-button type="primary" html-type="submit" :loading="passwordSubmitting" danger>
+            修改密码
+          </a-button>
+        </a-form-item>
+      </a-form>
     </div>
   </div>
 </template>
@@ -126,6 +186,43 @@ async function handleSubmit() {
 
 function handleCancel() {
   router.back()
+}
+
+// --- 修改密码 ---
+
+const passwordSubmitting = ref(false)
+
+const passwordFormState = reactive({
+  oldPassword: '',
+  newPassword: '',
+  checkPassword: '',
+})
+
+async function handlePasswordSubmit() {
+  passwordSubmitting.value = true
+  try {
+    const res = await request<API.BaseResponseBoolean>('/user/update/password', {
+      method: 'POST',
+      data: {
+        oldPassword: passwordFormState.oldPassword,
+        newPassword: passwordFormState.newPassword,
+        checkPassword: passwordFormState.checkPassword,
+      },
+    })
+    if (res.data?.code === 0) {
+      message.success('密码修改成功，请重新登录')
+      passwordFormState.oldPassword = ''
+      passwordFormState.newPassword = ''
+      passwordFormState.checkPassword = ''
+      router.push('/user/login')
+    } else {
+      message.error(res.data?.message || '修改密码失败')
+    }
+  } catch {
+    message.error('修改密码失败')
+  } finally {
+    passwordSubmitting.value = false
+  }
 }
 </script>
 

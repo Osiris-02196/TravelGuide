@@ -51,10 +51,28 @@
             {{ detailItem.reason }}
           </a-descriptions-item>
           <a-descriptions-item label="举报详细说明">
-            {{ detailItem.description || '无' }}
+            <span style="color: #1677ff">{{ detailItem.description || '无' }}</span>
           </a-descriptions-item>
           <a-descriptions-item label="被举报内容">
-            {{ detailItem.targetContent || '-' }}
+            <div class="target-content-row">
+              <span class="target-content-text" style="color: #d46b08">{{ detailItem.targetContent || '-' }}</span>
+              <a-button
+                v-if="detailItem.targetType === 'strategy' && detailItem.strategyId"
+                type="link"
+                size="small"
+                @click="goToTarget(detailItem.strategyId)"
+              >
+                查看攻略 <RightOutlined />
+              </a-button>
+              <a-button
+                v-else-if="detailItem.targetType === 'comment' && detailItem.strategyId"
+                type="link"
+                size="small"
+                @click="goToTarget(detailItem.strategyId, detailItem.targetId)"
+              >
+                定位评论 <RightOutlined />
+              </a-button>
+            </div>
           </a-descriptions-item>
           <a-descriptions-item
             v-if="detailItem.targetType === 'comment' && detailItem.strategyTitle"
@@ -62,7 +80,7 @@
           >
             <a
               v-if="detailItem.strategyId"
-              @click="goToStrategy(detailItem.strategyId, detailItem.targetId)"
+              @click="goToTarget(detailItem.strategyId, detailItem.targetId)"
             >
               {{ detailItem.strategyTitle }}
             </a>
@@ -114,7 +132,7 @@
               </a-tag>
             </a-descriptions-item>
             <a-descriptions-item label="审核说明">
-              {{ detailItem.reviewRemark || '-' }}
+              <span style="color: #1677ff">{{ detailItem.reviewRemark || '-' }}</span>
             </a-descriptions-item>
             <a-descriptions-item label="审核人">
               {{ detailItem.reviewAdminName || '-' }}
@@ -136,6 +154,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { RightOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { listPendingReports, getReportDetail, reviewReport } from '@/api/reportController'
 import dayjs from 'dayjs'
@@ -264,12 +283,21 @@ async function handleReview(status: 'approved' | 'rejected') {
   }
 }
 
-function goToStrategy(strategyId: string | number, commentId: string | number) {
+function goToStrategy(strategyId: string | number, commentId?: string | number) {
+  const query: Record<string, string> = {}
+  if (commentId !== undefined) {
+    query.commentId = String(commentId)
+  }
   router.push({
     name: 'strategyDetail',
     params: { id: String(strategyId) },
-    query: { commentId: String(commentId) },
+    query,
   })
+}
+
+function goToTarget(strategyId?: string | number, commentId?: string | number) {
+  if (!strategyId) return
+  goToStrategy(strategyId, commentId)
 }
 </script>
 
@@ -282,6 +310,20 @@ function goToStrategy(strategyId: string | number, commentId: string | number) {
 
 .review-section {
   margin-top: 16px;
+}
+
+.target-content-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.target-content-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .review-section h4 {

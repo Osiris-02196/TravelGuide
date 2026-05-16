@@ -159,9 +159,12 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
         long pageSize = reportQueryRequest.getPageSize();
         QueryWrapper queryWrapper = buildQueryWrapper(reportQueryRequest);
         Page<Report> reportPage = this.page(Page.of(pageNum, pageSize), queryWrapper);
-        // 5. 转换VO（列表场景，不注入目标内容详细信息）
+        // 5. 转换VO并注入被举报内容信息
         Page<ReportVO> reportVOPage = new Page<>(pageNum, pageSize, reportPage.getTotalRow());
         List<ReportVO> reportVOList = getReportVOList(reportPage.getRecords());
+        for (int i = 0; i < reportVOList.size(); i++) {
+            injectTargetInfo(reportVOList.get(i), reportPage.getRecords().get(i));
+        }
         reportVOPage.setRecords(reportVOList);
         return reportVOPage;
     }
@@ -316,16 +319,14 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
         String targetType = report.getTargetType();
         Long targetId = report.getTargetId();
         if (ReportTargetTypeEnum.STRATEGY.getValue().equals(targetType)) {
-            Strategy strategy = strategyMapper.selectOneById(targetId);
+            Strategy strategy = strategyMapper.selectByIdIncludeDeleted(targetId);
             if (strategy != null) {
-                String content = strategy.getStrategyContent();
-                reportVO.setTargetContent(StrUtil.isNotBlank(content) && content.length() > 100
-                        ? content.substring(0, 100) + "..." : content);
+                reportVO.setTargetContent(strategy.getStrategyTitle());
                 reportVO.setStrategyId(strategy.getId());
                 reportVO.setStrategyTitle(strategy.getStrategyTitle());
             }
         } else if (ReportTargetTypeEnum.COMMENT.getValue().equals(targetType)) {
-            Comment comment = commentMapper.selectOneById(targetId);
+            Comment comment = commentMapper.selectByIdIncludeDeleted(targetId);
             if (comment != null) {
                 String content = comment.getContent();
                 reportVO.setTargetContent(StrUtil.isNotBlank(content) && content.length() > 100
@@ -333,7 +334,7 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
                 reportVO.setStrategyId(comment.getStrategyId());
                 // 查询评论所属攻略标题
                 if (comment.getStrategyId() != null) {
-                    Strategy strategy = strategyMapper.selectOneById(comment.getStrategyId());
+                    Strategy strategy = strategyMapper.selectByIdIncludeDeleted(comment.getStrategyId());
                     if (strategy != null) {
                         reportVO.setStrategyTitle(strategy.getStrategyTitle());
                     }
