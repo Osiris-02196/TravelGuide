@@ -21,6 +21,7 @@ import com.oxiris.travelguide.model.entity.User;
 import com.oxiris.travelguide.model.enums.ReportStatusEnum;
 import com.oxiris.travelguide.model.enums.ReportTargetTypeEnum;
 import com.oxiris.travelguide.model.vo.ReportVO;
+import com.oxiris.travelguide.service.CommentService;
 import com.oxiris.travelguide.service.NotifyService;
 import com.oxiris.travelguide.service.ReportService;
 import com.oxiris.travelguide.service.UserService;
@@ -53,6 +54,9 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
 
     @Resource
     private NotifyService notifyService;
+
+    @Resource
+    private CommentService commentService;
 
     @Override
     public Long addReport(ReportAddRequest reportAddRequest, HttpServletRequest request) {
@@ -197,9 +201,18 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
         report.setReviewTime(LocalDateTime.now());
         boolean updateResult = this.updateById(report);
         ThrowUtils.throwIf(!updateResult, ErrorCode.OPERATION_ERROR, "审核举报失败");
-        // 6. 审核通过：通知相关用户
+        // 6. 审核通过：通知相关用户，并处理删除被举报内容
         if (ReportStatusEnum.APPROVED.getValue().equals(status)) {
             handleApprovedReport(report);
+            // 如果要求删除被举报内容且目标为评论，则删除评论
+            Boolean deleteTarget = reportReviewRequest.getDeleteTarget();
+            if (Boolean.TRUE.equals(deleteTarget) && ReportTargetTypeEnum.COMMENT.getValue().equals(report.getTargetType())) {
+                try {
+                    commentService.adminDeleteComment(report.getTargetId());
+                } catch (Exception e) {
+                    log.warn("删除被举报评论失败: {}", e.getMessage());
+                }
+            }
         } else {
             // 7. 审核驳回：仅通知举报人
             handleRejectedReport(report);

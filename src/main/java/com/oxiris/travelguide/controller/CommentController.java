@@ -1,6 +1,7 @@
 package com.oxiris.travelguide.controller;
 
 import com.mybatisflex.core.paginate.Page;
+import com.oxiris.travelguide.annotation.AuthCheck;
 import com.oxiris.travelguide.annotation.StatusCheck;
 import com.oxiris.travelguide.common.BaseResponse;
 import com.oxiris.travelguide.common.ErrorCode;
@@ -65,5 +66,19 @@ public class CommentController {
         ThrowUtils.throwIf(id == null || id <= 0, ErrorCode.PARAMS_ERROR);
         Boolean result = commentService.likeComment(id, request);
         return ResultUtils.success(result);
+    }
+
+    /**
+     * 管理员删除评论（逻辑删除）
+     *
+     * @param id 评论ID
+     * @return 是否成功
+     */
+    @PostMapping("/admin/delete/{id}")
+    @AuthCheck(mustRole = {UserConstant.ADMIN_ROLE, UserConstant.SUPERADMIN_ROLE})
+    public BaseResponse<Boolean> adminDeleteComment(@PathVariable Long id) {
+        ThrowUtils.throwIf(id == null || id <= 0, ErrorCode.PARAMS_ERROR);
+        commentService.adminDeleteComment(id);
+        return ResultUtils.success(true);
     }
 }

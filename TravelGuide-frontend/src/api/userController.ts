@@ -167,6 +167,21 @@ export async function updateUserStatus(
   })
 }
 
+/** 设置用户角色（仅 superadmin） POST /user/admin/set-role */
+export async function setUserRole(
+  body: API.SetUserRoleRequest,
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponseBoolean>('/user/admin/set-role', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  })
+}
+
 /** 此处后端没有提供注释 POST /user/upload/avatar */
 export async function uploadAvatar(body: {}, options?: { [key: string]: any }) {
   return request<API.BaseResponseString>('/user/upload/avatar', {

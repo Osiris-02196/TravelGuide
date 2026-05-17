@@ -163,10 +163,10 @@ Strategy lists are rendered as `.strategy-card-horizontal` cards. The card HTML/
 - Connection lifecycle: connect on login, disconnect on logout
 
 ### Report System
-- Users can report strategies or comments for reasons: `EROTIC`, `ADVERTISING`, `PERSONAL_ATTACK`, `ILLEGAL`, `FALSE_INFO`, `PLAGIARISM`, `OTHER`
+- Users can report strategies or comments; frontend `ReportDialog.vue` provides predefined Chinese reason labels (色情低俗/广告营销/人身攻击/违法违规/虚假信息/抄袭搬运/其他), stored as plain strings in `report.reason`
 - Report status flow: `pending` → admin reviews → `approved` (举报成立) / `rejected` (举报驳回)
 - Endpoints under `/api/report`: user-facing `POST /add`, `POST /list/my`, `GET /detail/{id}`; admin `POST /admin/list/pending`, `PUT /admin/review/{id}`
-- Admin review can apply action against the reported content author (e.g., mute or ban) alongside the report verdict
+- Admin review sends notifications to reporter (`report_result`) and reported user (`violation`), but does not automatically apply mute/ban actions
 - Frontend: `ReportDialog.vue` (report submission modal), `MyReportsPage.vue` (user's report history), `ReportReviewPage.vue` (admin review queue)
 
 ### User Follow System

@@ -240,6 +240,38 @@ public class UserController {
     }
 
     /**
+     * 设置用户角色（仅 superadmin 可调用）
+     *
+     * @param setUserRoleRequest 设置用户角色请求
+     * @return 是否成功
+     */
+    @PostMapping("/admin/set-role")
+    @AuthCheck(mustRole = {UserConstant.SUPERADMIN_ROLE})
+    public BaseResponse<Boolean> setUserRole(@RequestBody SetUserRoleRequest setUserRoleRequest,
+                                              HttpServletRequest request) {
+        ThrowUtils.throwIf(setUserRoleRequest == null || setUserRoleRequest.getId() == null,
+                ErrorCode.PARAMS_ERROR, "请求参数错误");
+        ThrowUtils.throwIf(setUserRoleRequest.getUserRole() == null ||
+                        (!"user".equals(setUserRoleRequest.getUserRole()) && !"admin".equals(setUserRoleRequest.getUserRole())),
+                ErrorCode.PARAMS_ERROR, "角色值不正确");
+        // 校验目标用户存在
+        User targetUser = userService.getById(setUserRoleRequest.getId());
+        ThrowUtils.throwIf(targetUser == null, ErrorCode.NOT_FOUND_ERROR, "用户不存在");
+        // 不能修改 superadmin 的角色
+        ThrowUtils.throwIf(UserConstant.SUPERADMIN_ROLE.equals(targetUser.getUserRole()),
+                ErrorCode.OPERATION_ERROR, "不能修改超级管理员的角色");
+        // 不能修改自己的角色
+        User loginUser = userService.getLoginUser(request);
+        ThrowUtils.throwIf(loginUser.getId().equals(setUserRoleRequest.getId()),
+                ErrorCode.OPERATION_ERROR, "不能修改自己的角色");
+        // 更新角色
+        targetUser.setUserRole(setUserRoleRequest.getUserRole());
+        boolean result = userService.updateById(targetUser);
+        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "设置角色失败");
+        return ResultUtils.success(true);
+    }
+
+    /**
      * 上传用户头像到COS
      */
     @PostMapping("/upload/avatar")

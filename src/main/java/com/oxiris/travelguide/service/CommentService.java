@@ -27,4 +27,9 @@ public interface CommentService extends IService<Comment> {
      * 点赞评论
      */
     Boolean likeComment(Long id, HttpServletRequest request);
+
+    /**
+     * 管理员删除评论（逻辑删除）
+     */
+    void adminDeleteComment(Long id);
 }

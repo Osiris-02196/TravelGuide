@@ -195,7 +195,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>  implements U
         return QueryWrapper.create()
                 .eq("id", id)
                 .eq("userRole", userRole)
-                .like("userAccount", userAccount)
+                .eq("userAccount", userAccount)
                 .like("userName", userName)
                 .orderBy(sortField, "ascend".equals(sortOrder));
     }

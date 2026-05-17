@@ -1,6 +1,15 @@
 <template>
   <div class="page-container">
-    <h3 style="margin-bottom: 20px; font-size: 18px">用户管理</h3>
+    <div class="page-header">
+      <h3 style="margin: 0; font-size: 18px">用户管理</h3>
+      <a-input-search
+        v-model:value="searchAccount"
+        placeholder="搜索账号"
+        style="width: 240px"
+        @search="handleSearch"
+        @change="handleSearchChange"
+      />
+    </div>
 
     <a-table
       :columns="columns"
@@ -25,29 +34,51 @@
         </template>
         <template v-else-if="column.key === 'actions'">
           <a-space>
-            <a-button
-              v-if="record.userStatus !== 1"
-              type="primary"
-              size="small"
-              @click="handleUpdateStatus(record, 1)"
-            >
-              正常
-            </a-button>
-            <a-button
-              v-if="record.userStatus !== 2"
-              size="small"
-              @click="handleUpdateStatus(record, 2)"
-            >
-              禁言
-            </a-button>
-            <a-button
-              v-if="record.userStatus !== 3"
-              danger
-              size="small"
-              @click="handleUpdateStatus(record, 3)"
-            >
-              封号
-            </a-button>
+            <!-- 状态管理按钮（仅 superadmin 用户行不显示） -->
+            <template v-if="record.userRole !== 'superadmin'">
+              <a-button
+                v-if="record.userStatus !== 1"
+                type="primary"
+                size="small"
+                @click="handleUpdateStatus(record, 1)"
+              >
+                正常
+              </a-button>
+              <a-button
+                v-if="record.userStatus !== 2"
+                size="small"
+                @click="handleUpdateStatus(record, 2)"
+              >
+                禁言
+              </a-button>
+              <a-button
+                v-if="record.userStatus !== 3"
+                danger
+                size="small"
+                @click="handleUpdateStatus(record, 3)"
+              >
+                封号
+              </a-button>
+            </template>
+            <!-- 角色管理按钮（仅 superadmin 可见） -->
+            <template v-if="isSuperAdmin && record.userRole !== 'superadmin'">
+              <a-button
+                v-if="record.userRole === 'user'"
+                type="primary"
+                size="small"
+                @click="handleSetRole(record, 'admin')"
+              >
+                设为管理员
+              </a-button>
+              <a-button
+                v-if="record.userRole === 'admin'"
+                size="small"
+                style="color: #d48806; border-color: #d48806"
+                @click="handleSetRole(record, 'user')"
+              >
+                取消管理员
+              </a-button>
+            </template>
           </a-space>
         </template>
       </template>
@@ -56,10 +87,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { message } from 'ant-design-vue'
-import { listUserVoByPage, updateUserStatus } from '@/api/userController'
+import { listUserVoByPage, updateUserStatus, setUserRole } from '@/api/userController'
+import { useLoginUserStore } from '@/stores/loginUser'
 
+const loginUserStore = useLoginUserStore()
+const isSuperAdmin = computed(() => loginUserStore.loginUser?.userRole === 'superadmin')
 const defaultAvatar = 'https://api.dicebear.com/7.x/initials/svg?seed=User'
 
 const columns = [
@@ -69,7 +103,7 @@ const columns = [
   { title: '角色', dataIndex: 'userRole', key: 'userRole', width: 80 },
   { title: '状态', dataIndex: 'userStatus', key: 'userStatus', width: 80 },
   { title: '创建时间', dataIndex: 'createTime', key: 'createTime', width: 160 },
-  { title: '操作', key: 'actions', width: 240, fixed: 'right' as const },
+  { title: '操作', key: 'actions', width: 300, fixed: 'right' as const },
 ]
 
 const dataList = ref<API.UserVO[]>([])
@@ -77,6 +111,7 @@ const loading = ref(false)
 const currentPage = ref(1)
 const pageSize = 20
 const total = ref(0)
+const searchAccount = ref('')
 
 const pagination = reactive({
   current: 1,
@@ -90,7 +125,11 @@ onMounted(() => fetchData())
 async function fetchData(page = 1) {
   loading.value = true
   try {
-    const res = await listUserVoByPage({ pageNum: page, pageSize: pageSize })
+    const params: API.UserQueryRequest = { pageNum: page, pageSize: pageSize }
+    if (searchAccount.value.trim()) {
+      params.userAccount = searchAccount.value.trim()
+    }
+    const res = await listUserVoByPage(params)
     if (res.data?.code === 0 && res.data?.data) {
       dataList.value = res.data.data.records || []
       total.value = res.data.data.totalRow || 0
@@ -102,6 +141,16 @@ async function fetchData(page = 1) {
     message.error('加载失败')
   } finally {
     loading.value = false
+  }
+}
+
+function handleSearch() {
+  fetchData(1)
+}
+
+function handleSearchChange() {
+  if (!searchAccount.value.trim()) {
+    fetchData(1)
   }
 }
 
@@ -125,6 +174,22 @@ async function handleUpdateStatus(record: API.UserVO, status: number) {
   }
 }
 
+async function handleSetRole(record: API.UserVO, role: string) {
+  if (!record.id) return
+  const label = role === 'admin' ? '管理员' : '普通用户'
+  try {
+    const res = await setUserRole({ id: record.id, userRole: role })
+    if (res.data?.code === 0) {
+      message.success(`已设为${label}`)
+      fetchData(currentPage.value)
+    } else {
+      message.error(res.data?.message || '操作失败')
+    }
+  } catch {
+    message.error('操作失败')
+  }
+}
+
 function getStatusColor(status?: number): string {
   const map: Record<number, string> = { 1: 'green', 2: 'orange', 3: 'red' }
   return map[status ?? 0] || 'default'
@@ -139,3 +204,12 @@ function handleImgError(e: Event) {
   ;(e.target as HTMLImageElement).src = defaultAvatar
 }
 </script>
+
+<style scoped>
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+</style>

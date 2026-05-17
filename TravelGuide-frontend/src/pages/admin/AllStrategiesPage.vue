@@ -1,6 +1,15 @@
 <template>
   <div class="page-container">
-    <h3 style="margin-bottom: 20px; font-size: 18px">所有攻略</h3>
+    <div class="page-header">
+      <h3 style="margin: 0; font-size: 18px">所有攻略</h3>
+      <a-input-search
+        v-model:value="searchTitle"
+        placeholder="搜索攻略标题"
+        style="width: 240px"
+        @search="handleSearch"
+        @change="handleSearchChange"
+      />
+    </div>
 
     <!-- Strategy List（横向长卡片，一行一个） -->
     <div v-if="dataList.length > 0" class="strategy-list">
@@ -122,6 +131,7 @@ const loading = ref(false)
 const currentPage = ref(1)
 const pageSize = 20
 const total = ref(0)
+const searchTitle = ref('')
 
 const pagination = reactive({
   current: 1,
@@ -174,12 +184,16 @@ onMounted(async () => {
 async function fetchData(page = 1) {
   loading.value = true
   try {
-    const res = await listPassedStrategies({
+    const params: API.StrategyQueryRequest = {
       pageNum: page,
       pageSize: pageSize,
       sortField: 'createTime',
       sortOrder: 'desc',
-    })
+    }
+    if (searchTitle.value.trim()) {
+      params.strategyTitle = searchTitle.value.trim()
+    }
+    const res = await listPassedStrategies(params)
     if (res.data?.code === 0 && res.data?.data) {
       dataList.value = res.data.data.records || []
       total.value = res.data.data.totalRow || 0
@@ -191,6 +205,16 @@ async function fetchData(page = 1) {
     message.error('加载失败')
   } finally {
     loading.value = false
+  }
+}
+
+function handleSearch() {
+  fetchData(1)
+}
+
+function handleSearchChange() {
+  if (!searchTitle.value.trim()) {
+    fetchData(1)
   }
 }
 
@@ -283,6 +307,14 @@ function handleAvatarError(e: Event) {
 </script>
 
 <style scoped>
+/* ===== 页面头部 ===== */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
 /* ===== 列表容器（一行一个，flex纵向排列） ===== */
 .strategy-list {
   display: flex;

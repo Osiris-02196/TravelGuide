@@ -110,7 +110,7 @@
                   type="primary"
                   danger
                   :loading="reviewing"
-                  @click="handleReview('approved')"
+                  @click="handleApproveClick"
                 >
                   举报成立
                 </a-button>
@@ -155,7 +155,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { RightOutlined } from '@ant-design/icons-vue'
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
 import { listPendingReports, getReportDetail, reviewReport } from '@/api/reportController'
 import dayjs from 'dayjs'
 
@@ -253,17 +253,49 @@ async function handleViewDetail(record: API.ReportVO) {
   drawerVisible.value = true
 }
 
-async function handleReview(status: 'approved' | 'rejected') {
+function handleApproveClick() {
+  if (!detailItem.value?.id) return
   if (!reviewRemark.value.trim()) {
     message.warning('请填写审核说明')
     return
   }
-  if (!detailItem.value?.id) return
+  // 如果是评论举报，弹出确认弹窗
+  if (detailItem.value.targetType === 'comment') {
+    Modal.confirm({
+      title: '该评论违规，是否删除该评论？',
+      content: '选择"是"将删除该评论并警告用户；选择"否，仅警告该用户"将仅发送警告通知。',
+      okText: '是',
+      cancelText: '否，仅警告该用户',
+      onOk: () => handleReview('approved', true),
+      onCancel: () => handleReview('approved', false),
+    })
+  } else {
+    // 策略举报直接审核通过
+    handleReview('approved', false)
+  }
+}
+
+async function handleReview(status: 'approved' | 'rejected', deleteTarget?: boolean) {
+  // 如果是从直接调用进入（非弹窗路径），先校验
+  if (deleteTarget === undefined) {
+    if (!reviewRemark.value.trim()) {
+      message.warning('请填写审核说明')
+      return
+    }
+    if (!detailItem.value?.id) return
+  }
   reviewing.value = true
   try {
+    const body: API.ReportReviewRequest = {
+      status,
+      reviewRemark: reviewRemark.value.trim(),
+    }
+    if (deleteTarget !== undefined) {
+      body.deleteTarget = deleteTarget
+    }
     const res = await reviewReport(
       { id: detailItem.value.id },
-      { status, reviewRemark: reviewRemark.value.trim() },
+      body,
     )
     if (res.data?.code === 0) {
       message.success(status === 'approved' ? '举报成立' : '举报已驳回')

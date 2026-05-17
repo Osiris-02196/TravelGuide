@@ -325,6 +325,11 @@ declare namespace API {
     userStatus?: number
   }
 
+  type SetUserRoleRequest = {
+    id?: string | number
+    userRole?: string
+  }
+
   type User = {
     id?: number
     userAccount?: string
@@ -446,6 +451,7 @@ declare namespace API {
   type ReportReviewRequest = {
     status?: string
     reviewRemark?: string
+    deleteTarget?: boolean
   }
 
   type ReportVO = {

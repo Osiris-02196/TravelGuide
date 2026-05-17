@@ -5,6 +5,7 @@ import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.core.update.UpdateChain;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 import com.oxiris.travelguide.common.ErrorCode;
+import com.oxiris.travelguide.exception.BusinessException;
 import com.oxiris.travelguide.exception.ThrowUtils;
 import com.oxiris.travelguide.model.dto.comment.CommentAddRequest;
 import com.oxiris.travelguide.model.dto.comment.CommentQueryRequest;
@@ -143,5 +144,14 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
             }
         }
         return true;
+    }
+
+    @Override
+    public void adminDeleteComment(Long id) {
+        ThrowUtils.throwIf(id == null || id <= 0, ErrorCode.PARAMS_ERROR);
+        Comment comment = this.getById(id);
+        ThrowUtils.throwIf(comment == null, ErrorCode.NOT_FOUND_ERROR, "评论不存在");
+        boolean removed = this.removeById(id);
+        ThrowUtils.throwIf(!removed, ErrorCode.OPERATION_ERROR, "删除评论失败");
     }
 }

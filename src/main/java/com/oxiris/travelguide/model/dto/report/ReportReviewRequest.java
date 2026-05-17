@@ -21,4 +21,9 @@ public class ReportReviewRequest implements Serializable {
      * 管理员审核说明
      */
     private String reviewRemark;
+
+    /**
+     * 是否删除被举报内容（仅评论有效）
+     */
+    private Boolean deleteTarget;
 }
