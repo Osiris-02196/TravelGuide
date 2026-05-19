@@ -32,4 +32,9 @@ public interface CommentService extends IService<Comment> {
      * 管理员删除评论（逻辑删除）
      */
     void adminDeleteComment(Long id);
+
+    /**
+     * 分页查询一级评论下的回复
+     */
+    Page<CommentVO> listReplies(Long parentId, int pageNum, int pageSize);
 }

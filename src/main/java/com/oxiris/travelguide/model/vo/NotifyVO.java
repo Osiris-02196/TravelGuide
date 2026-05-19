@@ -65,6 +65,12 @@ public class NotifyVO implements Serializable {
     private Integer isRead;
 
     /**
+     * 所属攻略ID（通知关联评论时使用，用于跳转到攻略详情）
+     */
+    @JsonSerialize(using = ToStringSerializer.class)
+    private Long strategyId;
+
+    /**
      * 创建时间
      */
     private LocalDateTime createTime;

@@ -9,7 +9,7 @@
     <div v-if="activeTab === 'reports'" class="report-list">
       <a-spin :spinning="loading">
         <div v-if="reportList.length > 0">
-          <div v-for="item in reportList" :key="item.id" class="report-card">
+          <div v-for="item in reportList" :key="item.id" class="report-card" :data-id="item.id">
             <div class="report-card-header">
               <span class="report-card-target">
                 <a-tag :color="item.targetType === 'strategy' ? 'blue' : 'purple'">
@@ -56,6 +56,16 @@
             </div>
             <div class="warning-card-body">
               <p>{{ item.content }}</p>
+              <a-button
+                v-if="item.targetType === 1 || item.targetType === 2"
+                type="link"
+                size="small"
+                @click="viewWarningContent(item)"
+              >
+                <template v-if="item.targetType === 1">查看攻略</template>
+                <template v-else>查看评论</template>
+                <RightOutlined style="font-size: 12px" />
+              </a-button>
             </div>
           </div>
         </div>
@@ -104,11 +114,15 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { RightOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { listMyReports, getReportDetail } from '@/api/reportController'
 import { listMyNotifies } from '@/api/notifyController'
 import dayjs from 'dayjs'
 
+const route = useRoute()
+const router = useRouter()
 const activeTab = ref('reports')
 
 // 我的举报
@@ -202,17 +216,34 @@ async function showDetail(item: API.ReportVO) {
 async function fetchWarnings(page: number) {
   if (page === 1) warningLoading.value = true
   try {
-    const res = await listMyNotifies({ pageNum: page, pageSize, type: 'violation' })
-    if (res.data?.code === 0 && res.data?.data) {
-      const data = res.data.data
-      if (page === 1) {
-        warningList.value = data.records || []
-      } else {
-        warningList.value.push(...(data.records || []))
-      }
-      warningTotal.value = data.totalRow || 0
-      warningPage.value = page
+    // 同时查询 violation（违规删除）和 warning（警告）两种类型
+    const [res1, res2] = await Promise.all([
+      listMyNotifies({ pageNum: page, pageSize, type: 'violation' }),
+      listMyNotifies({ pageNum: page, pageSize, type: 'warning' }),
+    ])
+    const allRecords: API.NotifyVO[] = []
+    let totalRow = 0
+    if (res1.data?.code === 0 && res1.data?.data) {
+      allRecords.push(...(res1.data.data.records || []))
+      totalRow += res1.data.data.totalRow || 0
     }
+    if (res2.data?.code === 0 && res2.data?.data) {
+      allRecords.push(...(res2.data.data.records || []))
+      totalRow += res2.data.data.totalRow || 0
+    }
+    // 按 createTime 降序排列
+    allRecords.sort((a, b) => {
+      const ta = a.createTime ? new Date(a.createTime).getTime() : 0
+      const tb = b.createTime ? new Date(b.createTime).getTime() : 0
+      return tb - ta
+    })
+    if (page === 1) {
+      warningList.value = allRecords
+    } else {
+      warningList.value.push(...allRecords)
+    }
+    warningTotal.value = totalRow
+    warningPage.value = page
   } catch {
     message.error('加载警告列表失败')
   } finally {
@@ -225,6 +256,46 @@ async function loadMoreWarnings() {
   warningLoadingMore.value = true
   await fetchWarnings(warningPage.value + 1)
 }
+
+/** 查看被警告/违规的内容 */
+function viewWarningContent(item: API.NotifyVO) {
+  const targetType = item.targetType
+  const targetId = item.targetId ? String(item.targetId) : ''
+  const strategyId = item.strategyId ? String(item.strategyId) : ''
+
+  if (targetType === 1) {
+    router.push(`/strategy/${targetId}`)
+  } else if (targetType === 2) {
+    const sid = strategyId || targetId
+    router.push(`/strategy/${sid}?commentId=${targetId}`)
+  }
+}
+
+/** 监听 highlightId 参数变化，高亮对应的举报项（支持从通知列表多次点击跳转） */
+watch(
+  () => route.query.highlightId,
+  (highlightId) => {
+    if (!highlightId) return
+    activeTab.value = 'reports'
+    const doHighlight = () => {
+      const el = document.querySelector(`.report-card[data-id="${highlightId}"]`)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        el.classList.add('highlight-flash')
+        setTimeout(() => el.classList.remove('highlight-flash'), 2000)
+        return true
+      }
+      return false
+    }
+    // 重试最多 5 次（间隔 500ms），等待数据加载完成
+    let attempts = 0
+    const timer = setInterval(() => {
+      attempts++
+      if (doHighlight() || attempts >= 5) clearInterval(timer)
+    }, 500)
+  },
+  { immediate: true },
+)
 
 // 监听 tab 切换，首次切换到 tab 时加载数据
 let reportsLoaded = false
@@ -301,6 +372,8 @@ watch(activeTab, (tab) => {
   margin: 0;
   font-size: 14px;
   color: #555;
+  flex: 1;
+  min-width: 0;
 }
 
 .load-more {
@@ -310,5 +383,28 @@ watch(activeTab, (tab) => {
 
 .report-detail {
   padding: 8px 0;
+}
+
+/* 高亮闪烁动画 */
+.report-card.highlight-flash {
+  animation: reportHighlightFade 2s ease-out;
+  border-radius: 8px;
+}
+
+@keyframes reportHighlightFade {
+  0% {
+    background-color: #fff566;
+    box-shadow: 0 0 12px rgba(255, 245, 102, 0.6);
+  }
+  100% {
+    background-color: #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  }
+}
+
+.warning-card-body {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 </style>

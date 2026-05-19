@@ -15,7 +15,8 @@ public enum NotifyTypeEnum {
     COLLECT("collect", "收藏通知"),
     PENDING("pending", "待审核通知"),
     VIOLATION("violation", "违规通知"),
-    REPORT_RESULT("report_result", "举报结果通知");
+    REPORT_RESULT("report_result", "举报结果通知"),
+    WARNING("warning", "警告通知");
 
     private final String value;
     private final String text;

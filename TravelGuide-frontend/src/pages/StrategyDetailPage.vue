@@ -112,6 +112,47 @@
                   </a-dropdown>
                 </div>
                 <div class="comment-item-content">{{ c.content }}</div>
+                <div class="comment-actions">
+                  <span v-if="loginUserStore.isLoggedIn" class="comment-action-btn" @click="startReply(c)">回复</span>
+                </div>
+                <!-- 回复列表 -->
+                <div v-if="c.replyCount && c.replyCount > 0" class="reply-toggle-area">
+                  <span v-if="!expandedSet.has(String(c.id))" class="reply-expand-btn" @click="toggleReplies(c.id)">
+                    <DownOutlined /> 共 {{ c.replyCount }} 条回复
+                  </span>
+                  <span v-else class="reply-expand-btn" @click="toggleReplies(c.id)">
+                    <UpOutlined /> 收起
+                  </span>
+                </div>
+                <div v-if="expandedSet.has(String(c.id))" class="replies-section">
+                  <a-spin :spinning="!!loadingReplyMap[String(c.id)]" size="small">
+                    <div v-for="r in (replyMap[String(c.id)] || [])" :key="r.id" class="reply-item">
+                      <div class="reply-item-header">
+                        <img :src="r.userAvatar || defaultAvatar" alt="avatar" class="reply-avatar" @click="goToUserProfile(r.userId)" />
+                        <span class="comment-item-name" @click="goToUserProfile(r.userId)">{{ r.userName || '匿名用户' }}</span>
+                        <span class="comment-item-time">
+                          {{ r.createTime ? dayjs(r.createTime).format('YYYY-MM-DD HH:mm') : '' }}
+                        </span>
+                        <span class="comment-like-btn" @click="handleCommentLike(r)">
+                          <HeartOutlined :style="{ color: r._liked ? '#ff4d4f' : '#ccc' }" />
+                          {{ r.likeCount || 0 }}
+                        </span>
+                      </div>
+                      <div class="reply-item-content">
+                        <span v-if="r.replyToUserName" class="reply-at-username">回复 @{{ r.replyToUserName }}：</span>
+                        {{ r.content }}
+                      </div>
+                      <div class="comment-actions">
+                        <span v-if="loginUserStore.isLoggedIn" class="comment-action-btn" @click="startReply(r)">回复</span>
+                      </div>
+                    </div>
+                    <div v-if="replyMap[String(c.id)] && replyMap[String(c.id)].length < (replyTotalMap[String(c.id)] || 0)"
+                         class="load-more-replies">
+                      <span @click="loadMoreReplies(c.id)">查看更多回复</span>
+                      <span class="reply-collapse-btn" @click="toggleReplies(c.id)">收起</span>
+                    </div>
+                  </a-spin>
+                </div>
               </div>
             </div>
             <div v-else style="text-align: center; padding: 24px; color: #bbb; font-size: 13px">
@@ -124,12 +165,18 @@
       <!-- Fixed bottom bar: input + actions -->
       <div class="detail-bottom-bar">
         <div v-if="loginUserStore.isLoggedIn" class="bottom-bar-inner">
-          <input
-            v-model="commentText"
-            class="bottom-input"
-            placeholder="写下你的评论..."
-            @keyup.enter="submitComment"
-          />
+          <div class="bottom-input-wrapper">
+            <div v-if="replyingTo" class="reply-indicator">
+              <span class="reply-to-label">回复 @{{ replyingTo.replyToUserName }}</span>
+              <CloseOutlined class="reply-cancel-btn" @click="cancelReply" />
+            </div>
+            <input
+              v-model="commentText"
+              class="bottom-input"
+              :placeholder="replyingTo ? `回复 @${replyingTo.replyToUserName}...` : '写下你的评论...'"
+              @keyup.enter="submitComment"
+            />
+          </div>
           <div class="bottom-actions">
             <span class="action-btn" @click="handleLike">
               <HeartOutlined :style="{ color: liked ? '#ff4d4f' : '#999' }" />
@@ -162,11 +209,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { HeartOutlined, StarOutlined, LeftOutlined, RightOutlined, MoreOutlined } from '@ant-design/icons-vue'
+import { HeartOutlined, StarOutlined, LeftOutlined, RightOutlined, MoreOutlined, CloseOutlined, DownOutlined, UpOutlined } from '@ant-design/icons-vue'
 import { getStrategyDetail, likeStrategy, collectStrategy } from '@/api/strategyController'
-import { addComment, listComments, likeComment } from '@/api/commentController'
+import { addComment, listComments, likeComment, listReplies } from '@/api/commentController'
 import { useLoginUserStore } from '@/stores/loginUser'
 import ReportDialog from '@/components/ReportDialog.vue'
 import dayjs from 'dayjs'
@@ -191,6 +238,14 @@ const commentTotal = ref(0)
 
 const reportDialogRef = ref<InstanceType<typeof ReportDialog> | null>(null)
 
+// 回复状态
+const replyingTo = ref<{ parentId: string | number; replyToUserId: string | number; replyToUserName: string } | null>(null)
+const replyMap = reactive<Record<string, API.CommentVO[]>>({})
+const replyPageMap = reactive<Record<string, number>>({})
+const replyTotalMap = reactive<Record<string, number>>({})
+const loadingReplyMap = reactive<Record<string, boolean>>({})
+const expandedSet = reactive<Set<string>>(new Set())
+
 const defaultAvatar = 'https://api.dicebear.com/7.x/initials/svg?seed=User'
 
 const allImages = ref<string[]>([])
@@ -214,19 +269,47 @@ onMounted(async () => {
   if (!idStr) return
   await fetchDetail(idStr)
   await fetchComments(idStr)
-  // 如果 URL 携带 commentId 参数，滚动到对应评论
-  const commentId = route.query.commentId
-  if (commentId) {
-    setTimeout(() => {
-      const el = document.getElementById(`comment-${commentId}`)
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        el.style.background = '#fffbe6'
-        setTimeout(() => { el.style.background = '' }, 3000)
-      }
-    }, 500)
-  }
+  scrollToComment()
 })
+
+// 监听路由参数变化（组件复用时重新加载数据），例如通知列表点击跳转到不同攻略
+watch(
+  () => route.params.id,
+  (newId, oldId) => {
+    const newStr = Array.isArray(newId) ? newId[0] : newId
+    const oldStr = Array.isArray(oldId) ? oldId[0] : oldId
+    if (!newStr || !newStr.trim() || newStr === oldStr) return
+    currentImageIndex.value = 0
+    comments.value = []
+    commentPage.value = 1
+    commentTotal.value = 0
+    fetchDetail(newStr)
+    fetchComments(newStr).then(() => scrollToComment())
+  },
+)
+
+// 仅 commentId 变化时重新滚动定位
+watch(
+  () => route.query.commentId,
+  (newCommentId, oldCommentId) => {
+    if (newCommentId && newCommentId !== oldCommentId) {
+      scrollToComment()
+    }
+  },
+)
+
+function scrollToComment() {
+  const commentId = route.query.commentId
+  if (!commentId) return
+  setTimeout(() => {
+    const el = document.getElementById(`comment-${commentId}`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el.classList.add('highlight-flash')
+      setTimeout(() => { el.classList.remove('highlight-flash') }, 2000)
+    }
+  }, 500)
+}
 
 async function fetchDetail(id: string) {
   loading.value = true
@@ -269,6 +352,15 @@ async function fetchComments(strategyId: string) {
     }
   } catch {
     // ignore
+  } finally {
+    // 清除回复状态
+    for (const key of Object.keys(replyMap)) {
+      delete replyMap[key]
+      delete replyPageMap[key]
+      delete replyTotalMap[key]
+      delete loadingReplyMap[key]
+    }
+    expandedSet.clear()
   }
 }
 
@@ -278,6 +370,66 @@ function switchCommentTab(tab: string) {
   commentPage.value = 1
   const idStr = routeStrategyId()
   if (idStr) fetchComments(idStr)
+}
+
+// ===== 回复功能 =====
+async function fetchReplies(parentId: string | number, pageNum: number = 1) {
+  const key = String(parentId)
+  loadingReplyMap[key] = true
+  try {
+    const res = await listReplies({
+      parentId,
+      pageNum,
+      pageSize: 5,
+    })
+    if (res.data?.code === 0 && res.data?.data) {
+      const records = res.data.data.records || []
+      if (pageNum === 1) {
+        replyMap[key] = records
+      } else {
+        replyMap[key] = [...(replyMap[key] || []), ...records]
+      }
+      replyPageMap[key] = res.data.data.pageNumber || 1
+      replyTotalMap[key] = res.data.data.totalRow || 0
+    }
+  } catch {
+    // ignore
+  } finally {
+    loadingReplyMap[key] = false
+  }
+}
+
+function toggleReplies(commentId: string | number | undefined) {
+  if (commentId == null) return
+  const key = String(commentId)
+  if (expandedSet.has(key)) {
+    expandedSet.delete(key)
+  } else {
+    expandedSet.add(key)
+    if (!replyMap[key] || replyMap[key].length === 0) {
+      fetchReplies(commentId)
+    }
+  }
+}
+
+function loadMoreReplies(commentId: string | number | undefined) {
+  if (commentId == null) return
+  const key = String(commentId)
+  const nextPage = (replyPageMap[key] || 1) + 1
+  fetchReplies(commentId, nextPage)
+}
+
+function startReply(c: API.CommentVO) {
+  if (!c.id || !c.userId) return
+  replyingTo.value = {
+    parentId: c.parentId || c.id,
+    replyToUserId: c.userId,
+    replyToUserName: c.userName || '匿名用户',
+  }
+}
+
+function cancelReply() {
+  replyingTo.value = null
 }
 
 async function handleLike() {
@@ -325,13 +477,19 @@ async function submitComment() {
   }
   submittingComment.value = true
   try {
-    const res = await addComment({
+    const body: API.CommentAddRequest = {
       strategyId: idStr as any,
       content: commentText.value.trim(),
-    })
+    }
+    if (replyingTo.value) {
+      body.parentId = replyingTo.value.parentId
+      body.replyToUserId = replyingTo.value.replyToUserId
+    }
+    const res = await addComment(body)
     if (res.data?.code === 0) {
       message.success('评论成功')
       commentText.value = ''
+      replyingTo.value = null
       await fetchComments(idStr)
     } else {
       message.error(res.data?.message || '评论失败')
@@ -771,6 +929,145 @@ function goToUserProfile(userId: string | number | undefined) {
   word-break: break-word;
 }
 
+/* ===== Reply Actions ===== */
+.comment-actions {
+  display: flex;
+  gap: 12px;
+  padding-left: 36px;
+  margin-top: 4px;
+}
+
+.comment-action-btn {
+  font-size: 12px;
+  color: #999;
+  cursor: pointer;
+  user-select: none;
+}
+
+.comment-action-btn:hover {
+  color: #1890ff;
+}
+
+/* ===== Reply Toggle ===== */
+.reply-toggle-area {
+  padding-left: 36px;
+  margin-top: 6px;
+}
+
+.reply-expand-btn {
+  font-size: 13px;
+  color: #1890ff;
+  cursor: pointer;
+  user-select: none;
+}
+
+.reply-expand-btn:hover {
+  color: #40a9ff;
+}
+
+/* ===== Replies Section ===== */
+.replies-section {
+  margin-top: 8px;
+  padding-left: 36px;
+  border-left: 2px solid #f0f0f0;
+  margin-left: 14px;
+}
+
+.reply-item {
+  padding: 8px 0;
+  border-bottom: 1px solid #f8f8f8;
+}
+
+.reply-item:last-child {
+  border-bottom: none;
+}
+
+.reply-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reply-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #f0f0f0;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.reply-item-content {
+  font-size: 14px;
+  color: #444;
+  line-height: 1.6;
+  margin-top: 4px;
+  padding-left: 32px;
+  word-break: break-word;
+}
+
+.reply-at-username {
+  color: #1890ff;
+  font-size: 13px;
+}
+
+.load-more-replies {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  font-size: 13px;
+  color: #1890ff;
+}
+
+.load-more-replies span {
+  cursor: pointer;
+  user-select: none;
+}
+
+.load-more-replies span:hover {
+  color: #40a9ff;
+}
+
+.reply-collapse-btn {
+  color: #999;
+}
+
+.reply-collapse-btn:hover {
+  color: #333 !important;
+}
+
+/* ===== Bottom Bar Input Wrapper ===== */
+.bottom-input-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.reply-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+}
+
+.reply-to-label {
+  font-size: 12px;
+  color: #1890ff;
+}
+
+.reply-cancel-btn {
+  font-size: 12px;
+  color: #999;
+  cursor: pointer;
+}
+
+.reply-cancel-btn:hover {
+  color: #333;
+}
+
 /* ===== Bottom Bar ===== */
 .detail-bottom-bar {
   position: sticky;
@@ -844,5 +1141,26 @@ function goToUserProfile(userId: string | number | undefined) {
   color: #888;
   font-size: 13px;
   padding: 6px 0;
+}
+</style>
+
+<!-- 评论高亮闪烁动画（非 scoped，class 通过 JS 动态添加） -->
+<style>
+.comment-item-header.highlight-flash {
+  animation: highlightFade 2s ease-out;
+  border-radius: 6px;
+  padding: 4px 8px;
+  margin: -4px -8px;
+}
+
+@keyframes highlightFade {
+  0% {
+    background-color: #fff566;
+    box-shadow: 0 0 8px rgba(255, 245, 102, 0.6);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
 }
 </style>

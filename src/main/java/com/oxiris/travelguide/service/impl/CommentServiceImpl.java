@@ -5,7 +5,6 @@ import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.core.update.UpdateChain;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 import com.oxiris.travelguide.common.ErrorCode;
-import com.oxiris.travelguide.exception.BusinessException;
 import com.oxiris.travelguide.exception.ThrowUtils;
 import com.oxiris.travelguide.model.dto.comment.CommentAddRequest;
 import com.oxiris.travelguide.model.dto.comment.CommentQueryRequest;
@@ -22,6 +21,7 @@ import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 
@@ -50,9 +50,29 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
         ThrowUtils.throwIf(strategyIdStr == null || strategyIdStr.trim().isEmpty(), ErrorCode.PARAMS_ERROR, "攻略ID不能为空");
         Long strategyId = Long.valueOf(strategyIdStr);
 
+        // 处理回复
+        Long resolvedParentId = null;
+        Long resolvedReplyToUserId = null;
+        String parentIdStr = commentAddRequest.getParentId();
+        if (StringUtils.hasText(parentIdStr)) {
+            Long rawParentId = Long.valueOf(parentIdStr);
+            Comment targetComment = this.getById(rawParentId);
+            ThrowUtils.throwIf(targetComment == null, ErrorCode.NOT_FOUND_ERROR, "被回复的评论不存在");
+
+            // 如果目标本身是回复，则关联到其所属的一级评论
+            resolvedParentId = targetComment.getParentId() != null ? targetComment.getParentId() : targetComment.getId();
+
+            String replyToUserIdStr = commentAddRequest.getReplyToUserId();
+            if (StringUtils.hasText(replyToUserIdStr)) {
+                resolvedReplyToUserId = Long.valueOf(replyToUserIdStr);
+            }
+        }
+
         Comment comment = Comment.builder()
                 .userId(loginUser.getId())
                 .strategyId(strategyId)
+                .parentId(resolvedParentId)
+                .replyToUserId(resolvedReplyToUserId)
                 .content(commentAddRequest.getContent())
                 .likeCount(0)
                 .commentStatus(1)
@@ -80,6 +100,16 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
             }
         }
 
+        // 发送回复通知给被回复用户
+        if (resolvedReplyToUserId != null && !resolvedReplyToUserId.equals(loginUser.getId())) {
+            try {
+                notifyService.createAndPushNotify(resolvedReplyToUserId, loginUser.getId(),
+                        "comment", 2, comment.getId());
+            } catch (Exception e) {
+                log.warn("发送回复通知失败: {}", e.getMessage());
+            }
+        }
+
         return comment.getId();
     }
 
@@ -89,13 +119,16 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
         ThrowUtils.throwIf(strategyIdStr == null || strategyIdStr.trim().isEmpty(), ErrorCode.PARAMS_ERROR);
         Long strategyId = Long.valueOf(strategyIdStr);
 
-        // 使用字符串字段名，风格与 StrategyServiceImpl 一致
+        // 只查询一级评论（parentId IS NULL），并带上回复数子查询
         QueryWrapper queryWrapper = QueryWrapper.create()
                 .select("comment.id", "comment.userId", "comment.strategyId", "comment.content",
-                        "comment.likeCount", "comment.createTime", "user.userName", "user.userAvatar")
+                        "comment.likeCount", "comment.createTime", "comment.parentId", "comment.replyToUserId",
+                        "user.userName", "user.userAvatar",
+                        "(SELECT COUNT(*) FROM comment r WHERE r.parentId = comment.id AND r.isDelete = 0 AND r.commentStatus = 1) AS replyCount")
                 .from("comment")
                 .leftJoin("user").on("comment.userId = user.id")
                 .where("comment.strategyId = ?", strategyId)
+                .and("comment.parentId IS NULL")
                 .and("comment.isDelete = 0")
                 .and("comment.commentStatus = 1");
 
@@ -114,9 +147,30 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
         if (pageNum <= 0) pageNum = 1;
         if (pageSize <= 0) pageSize = 10;
 
-        // 使用 MyBatis-Flex 的分页方式（同 StrategyServiceImpl）
-        Page<CommentVO> page = this.mapper.paginateAs(Page.of(pageNum, pageSize), queryWrapper, CommentVO.class);
-        return page;
+        return this.mapper.paginateAs(Page.of(pageNum, pageSize), queryWrapper, CommentVO.class);
+    }
+
+    @Override
+    public Page<CommentVO> listReplies(Long parentId, int pageNum, int pageSize) {
+        ThrowUtils.throwIf(parentId == null || parentId <= 0, ErrorCode.PARAMS_ERROR);
+
+        QueryWrapper queryWrapper = QueryWrapper.create()
+                .select("comment.id", "comment.userId", "comment.strategyId", "comment.content",
+                        "comment.likeCount", "comment.createTime", "comment.parentId", "comment.replyToUserId",
+                        "user.userName", "user.userAvatar",
+                        "replyUser.userName AS replyToUserName")
+                .from("comment")
+                .leftJoin("user").on("comment.userId = user.id")
+                .leftJoin("user").as("replyUser").on("comment.replyToUserId = replyUser.id")
+                .where("comment.parentId = ?", parentId)
+                .and("comment.isDelete = 0")
+                .and("comment.commentStatus = 1")
+                .orderBy("comment.createTime", true);
+
+        if (pageNum <= 0) pageNum = 1;
+        if (pageSize <= 0) pageSize = 5;
+
+        return this.mapper.paginateAs(Page.of(pageNum, pageSize), queryWrapper, CommentVO.class);
     }
 
     @Override
@@ -151,6 +205,12 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
         ThrowUtils.throwIf(id == null || id <= 0, ErrorCode.PARAMS_ERROR);
         Comment comment = this.getById(id);
         ThrowUtils.throwIf(comment == null, ErrorCode.NOT_FOUND_ERROR, "评论不存在");
+
+        // 如果是一级评论，联动删除其下的回复
+        if (comment.getParentId() == null) {
+            this.remove(QueryWrapper.create().where("parentId = ?", id));
+        }
+
         boolean removed = this.removeById(id);
         ThrowUtils.throwIf(!removed, ErrorCode.OPERATION_ERROR, "删除评论失败");
     }

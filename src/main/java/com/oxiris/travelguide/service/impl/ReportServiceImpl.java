@@ -200,9 +200,9 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
         ThrowUtils.throwIf(!updateResult, ErrorCode.OPERATION_ERROR, "审核举报失败");
         // 6. 审核通过：通知相关用户，并处理删除被举报内容
         if (ReportStatusEnum.APPROVED.getValue().equals(status)) {
-            handleApprovedReport(report);
-            // 如果要求删除被举报内容且目标为评论，则删除评论
             Boolean deleteTarget = reportReviewRequest.getDeleteTarget();
+            handleApprovedReport(report, Boolean.TRUE.equals(deleteTarget));
+            // 如果要求删除被举报内容且目标为评论，则删除评论
             if (Boolean.TRUE.equals(deleteTarget) && ReportTargetTypeEnum.COMMENT.getValue().equals(report.getTargetType())) {
                 try {
                     commentService.adminDeleteComment(report.getTargetId());
@@ -219,8 +219,10 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
 
     /**
      * 处理举报成立：通知举报人和被举报用户
+     * @param report 举报记录
+     * @param deleteTarget 是否删除了被举报内容（true=违规删除通知，false=警告通知）
      */
-    private void handleApprovedReport(Report report) {
+    private void handleApprovedReport(Report report, boolean deleteTarget) {
         // 1. 通知举报人：举报成立
         try {
             notifyService.createAndPushNotify(report.getReporterId(), null,
@@ -228,11 +230,23 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
         } catch (Exception e) {
             log.warn("通知举报人失败: {}", e.getMessage());
         }
-        // 2. 通知被举报用户：内容被举报违规
+        // 2. 通知被举报用户
         try {
-            Integer notifyTargetType = ReportTargetTypeEnum.STRATEGY.getValue().equals(report.getTargetType()) ? 1 : 2;
+            boolean isStrategy = ReportTargetTypeEnum.STRATEGY.getValue().equals(report.getTargetType());
+            Integer notifyTargetType;
+            Long notifyTargetId;
+            if (isStrategy) {
+                // 攻略举报：targetId 用攻略ID，始终发警告（策略不会因举报被删除）
+                notifyTargetType = 1;
+                notifyTargetId = report.getTargetId();
+            } else {
+                // 评论举报：targetId 用评论ID
+                notifyTargetType = 2;
+                notifyTargetId = report.getTargetId();
+            }
+            String notifyType = deleteTarget ? "violation" : "warning";
             notifyService.createAndPushNotify(report.getReportedUserId(), null,
-                    "violation", notifyTargetType, report.getId());
+                    notifyType, notifyTargetType, notifyTargetId);
         } catch (Exception e) {
             log.warn("通知被举报用户失败: {}", e.getMessage());
         }

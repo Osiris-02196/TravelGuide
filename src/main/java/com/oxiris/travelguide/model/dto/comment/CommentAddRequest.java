@@ -21,4 +21,14 @@ public class CommentAddRequest implements Serializable {
      * 评论内容
      */
     private String content;
+
+    /**
+     * 回复的一级评论ID
+     */
+    private String parentId;
+
+    /**
+     * 被回复用户ID
+     */
+    private String replyToUserId;
 }

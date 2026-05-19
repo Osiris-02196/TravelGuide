@@ -66,6 +66,7 @@ declare namespace API {
     targetId?: string | number
     content?: string
     isRead?: number
+    strategyId?: string | number
     createTime?: string
   }
 
@@ -180,6 +181,12 @@ declare namespace API {
     id: string | number
   }
 
+  type listRepliesParams = {
+    parentId: string | number
+    pageNum?: number
+    pageSize?: number
+  }
+
   type listCitiesParams = {
     provinceId: number
   }
@@ -288,6 +295,14 @@ declare namespace API {
     content?: string
     likeCount?: number
     createTime?: string
+    /** 所属一级评论ID */
+    parentId?: string | number
+    /** 被回复用户ID */
+    replyToUserId?: string | number
+    /** 被回复用户名称 */
+    replyToUserName?: string
+    /** 回复数（仅顶级评论有值） */
+    replyCount?: number
     /** 客户端本地状态：是否已点赞 */
     _liked?: boolean
   }
@@ -310,6 +325,8 @@ declare namespace API {
   type CommentAddRequest = {
     strategyId?: string
     content?: string
+    parentId?: string | number
+    replyToUserId?: string | number
   }
 
   type CommentQueryRequest = {

@@ -3,6 +3,7 @@ package com.oxiris.travelguide.controller;
 import com.mybatisflex.core.paginate.Page;
 import com.oxiris.travelguide.annotation.AuthCheck;
 import com.oxiris.travelguide.annotation.StatusCheck;
+import com.oxiris.travelguide.common.PageRequest;
 import com.oxiris.travelguide.common.BaseResponse;
 import com.oxiris.travelguide.common.ErrorCode;
 import com.oxiris.travelguide.common.ResultUtils;
@@ -80,5 +81,21 @@ public class CommentController {
         ThrowUtils.throwIf(id == null || id <= 0, ErrorCode.PARAMS_ERROR);
         commentService.adminDeleteComment(id);
         return ResultUtils.success(true);
+    }
+
+    /**
+     * 分页查询一级评论下的回复
+     *
+     * @param parentId   一级评论ID
+     * @param pageRequest 分页参数
+     * @return 分页回复VO
+     */
+    @PostMapping("/replies/{parentId}")
+    public BaseResponse<Page<CommentVO>> listReplies(@PathVariable Long parentId,
+                                                      @RequestBody PageRequest pageRequest) {
+        ThrowUtils.throwIf(parentId == null || parentId <= 0, ErrorCode.PARAMS_ERROR);
+        Page<CommentVO> result = commentService.listReplies(parentId,
+                pageRequest.getPageNum(), pageRequest.getPageSize());
+        return ResultUtils.success(result);
     }
 }

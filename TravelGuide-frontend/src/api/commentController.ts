@@ -39,3 +39,19 @@ export async function likeComment(
     ...(options || {}),
   })
 }
+
+/** 分页查询回复列表 POST /comment/replies/${param0} */
+export async function listReplies(
+  params: API.listRepliesParams,
+  options?: { [key: string]: any }
+) {
+  const { parentId: param0, pageNum, pageSize, ...queryParams } = params
+  return request<API.BaseResponsePageCommentVO>(`/comment/replies/${param0}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: { pageNum, pageSize },
+    ...(options || {}),
+  })
+}

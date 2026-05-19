@@ -9,8 +9,10 @@ import com.mybatisflex.spring.service.impl.ServiceImpl;
 import com.oxiris.travelguide.common.ErrorCode;
 import com.oxiris.travelguide.exception.ThrowUtils;
 import com.oxiris.travelguide.mapper.NotifyMapper;
+import com.oxiris.travelguide.mapper.CommentMapper;
 import com.oxiris.travelguide.model.dto.notify.NotifyQueryRequest;
 import com.oxiris.travelguide.model.entity.Notify;
+import com.oxiris.travelguide.model.entity.Comment;
 import com.oxiris.travelguide.model.entity.User;
 import com.oxiris.travelguide.model.entity.Strategy;
 import com.oxiris.travelguide.model.enums.notify.NotifyTypeEnum;
@@ -46,6 +48,9 @@ public class NotifyServiceImpl extends ServiceImpl<NotifyMapper, Notify> impleme
 
     @Resource
     private NotifyWebSocketHandler notifyWebSocketHandler;
+
+    @Resource
+    private CommentMapper commentMapper;
 
     @Override
     public Notify createAndPushNotify(Long receiverId, Long senderId, String type, Integer targetType, Long targetId) {
@@ -83,6 +88,7 @@ public class NotifyServiceImpl extends ServiceImpl<NotifyMapper, Notify> impleme
             case PENDING -> buildPendingContent(senderName);
             case VIOLATION -> buildViolationContent(notify.getTargetType());
             case REPORT_RESULT -> "你的举报审核结果已更新";
+            case WARNING -> buildWarningContent(notify);
         };
     }
 
@@ -107,6 +113,13 @@ public class NotifyServiceImpl extends ServiceImpl<NotifyMapper, Notify> impleme
         // Step 4: 确保 content 已拼接
         if (StrUtil.isBlank(notifyVO.getContent())) {
             notifyVO.setContent(buildNotifyContent(notify));
+        }
+        // Step 5: 如果关联评论，补充所属攻略ID用于前端跳转
+        if (notify.getTargetType() != null && notify.getTargetType() == 2 && notify.getTargetId() != null) {
+            Comment comment = commentMapper.selectOneById(notify.getTargetId());
+            if (comment != null && comment.getStrategyId() != null) {
+                notifyVO.setStrategyId(comment.getStrategyId());
+            }
         }
         return notifyVO;
     }
@@ -323,5 +336,18 @@ public class NotifyServiceImpl extends ServiceImpl<NotifyMapper, Notify> impleme
             return "你发布的评论因违规被删除";
         }
         return "你发布的内容因违规被删除";
+    }
+
+    private String buildWarningContent(Notify notify) {
+        Integer targetType = notify.getTargetType();
+        if (targetType != null && targetType == 1) {
+            Strategy strategy = strategyService.getById(notify.getTargetId());
+            String title = (strategy != null && StrUtil.isNotBlank(strategy.getStrategyTitle()))
+                    ? strategy.getStrategyTitle() : "未知攻略";
+            return "你的攻略「" + title + "」已被管理员警告";
+        } else if (targetType != null && targetType == 2) {
+            return "你的评论已被管理员警告";
+        }
+        return "你收到一条警告通知";
     }
 }

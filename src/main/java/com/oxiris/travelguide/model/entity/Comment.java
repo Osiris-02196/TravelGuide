@@ -47,6 +47,18 @@ public class Comment implements Serializable {
     private Long strategyId;
 
     /**
+     * 所属一级评论ID（NULL表示顶级评论）
+     */
+    @Column("parentId")
+    private Long parentId;
+
+    /**
+     * 被回复用户ID
+     */
+    @Column("replyToUserId")
+    private Long replyToUserId;
+
+    /**
      * 评论内容
      */
     private String content;

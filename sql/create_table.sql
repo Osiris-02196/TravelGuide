@@ -65,6 +65,8 @@ CREATE TABLE comment (
                          id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '评论ID',
                          userId BIGINT NOT NULL COMMENT '用户ID',
                          strategyId BIGINT NOT NULL COMMENT '攻略ID',
+                         parentId BIGINT NULL COMMENT '所属一级评论ID（NULL=顶级）',
+                         replyToUserId BIGINT NULL COMMENT '被回复用户ID',
 
                          content TEXT COMMENT '评论内容',
                          likeCount INT DEFAULT 0,
@@ -77,7 +79,8 @@ CREATE TABLE comment (
                          isDelete TINYINT DEFAULT 0 NOT NULL COMMENT '是否删除（0-否 1-是）',
 
                          INDEX idx_strategyId (strategyId),
-                         INDEX idx_strategy_time (strategyId, createTime)
+                         INDEX idx_strategy_time (strategyId, createTime),
+                         INDEX idx_parentId (parentId)
 ) COMMENT='评论表'
     COLLATE = utf8mb4_unicode_ci;
 
@@ -193,6 +196,11 @@ CREATE TABLE report (
 ) COMMENT='举报表'
     COLLATE = utf8mb4_unicode_ci;
 
+ALTER TABLE comment
+  ADD COLUMN parentId BIGINT NULL COMMENT '所属一级评论ID（NULL=顶级）' AFTER strategyId,
+  ADD COLUMN replyToUserId BIGINT NULL COMMENT '被回复用户ID' AFTER parentId;
+
+ALTER TABLE comment ADD INDEX idx_parentId (parentId);
 
 
 

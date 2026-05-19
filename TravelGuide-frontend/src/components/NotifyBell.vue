@@ -53,11 +53,13 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { BellOutlined } from '@ant-design/icons-vue'
 import { useNotifyStore } from '@/stores/notify'
 import { useLoginUserStore } from '@/stores/loginUser'
 import dayjs from 'dayjs'
 
+const router = useRouter()
 const notifyStore = useNotifyStore()
 const loginUserStore = useLoginUserStore()
 
@@ -121,8 +123,40 @@ function handleReadAll() {
   notifyStore.markAllRead()
 }
 
-function handleClickItem(_item: API.NotifyVO) {
-  // 可以跳转到对应详情页，此处暂不处理
+function handleClickItem(item: API.NotifyVO) {
+  visible.value = false
+  if (!item.type && !item.targetType) return
+
+  // 根据消息类型导航
+  const type = item.type
+  const targetType = item.targetType
+  const targetId = item.targetId ? String(item.targetId) : ''
+  const strategyId = item.strategyId ? String(item.strategyId) : ''
+
+  if (type === 'pending') {
+    // 待审核通知 → 管理员待审核列表
+    router.push('/admin/pending-strategies')
+    return
+  }
+
+  if (type === 'report_result') {
+    // 举报结果 → 我的举报列表
+    router.push(`/my-reports?highlightId=${targetId}`)
+    return
+  }
+
+  // 根据目标类型跳转
+  if (targetType === 1) {
+    // 攻略相关（点赞/收藏/评论/审核/警告）
+    router.push(`/strategy/${targetId}`)
+  } else if (targetType === 2) {
+    // 评论相关（点赞/回复/警告/违规）→ 跳转到攻略详情并定位评论
+    const sid = strategyId || targetId
+    router.push(`/strategy/${sid}?commentId=${targetId}`)
+  } else if (targetType === 3) {
+    // 用户相关
+    router.push(`/user/${targetId}/profile`)
+  }
 }
 
 function handleScroll(e: Event) {
