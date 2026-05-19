@@ -4,7 +4,7 @@ import com.oxiris.travelguide.annotation.StatusCheck;
 import com.oxiris.travelguide.common.ErrorCode;
 import com.oxiris.travelguide.exception.BusinessException;
 import com.oxiris.travelguide.model.entity.User;
-import com.oxiris.travelguide.model.enums.UserStatusEnum;
+import com.oxiris.travelguide.model.enums.user.UserStatusEnum;
 import com.oxiris.travelguide.service.UserService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;

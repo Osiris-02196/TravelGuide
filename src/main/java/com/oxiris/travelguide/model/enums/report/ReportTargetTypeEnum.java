@@ -1,4 +1,4 @@
-package com.oxiris.travelguide.model.enums;
+package com.oxiris.travelguide.model.enums.report;
 
 import cn.hutool.core.util.StrUtil;
 import lombok.Getter;

@@ -23,6 +23,8 @@ import com.oxiris.travelguide.model.entity.Strategy;
 import com.oxiris.travelguide.model.entity.StrategyCollect;
 import com.oxiris.travelguide.model.entity.StrategyLike;
 import com.oxiris.travelguide.model.entity.User;
+import com.oxiris.travelguide.model.enums.strategy.OfficialStatusEnum;
+import com.oxiris.travelguide.model.enums.strategy.StrategyStatusEnum;
 import com.oxiris.travelguide.model.vo.LocationVO;
 import com.oxiris.travelguide.model.vo.StrategyCollectVO;
 import com.oxiris.travelguide.model.vo.StrategyVO;
@@ -148,13 +150,13 @@ public class StrategyServiceImpl extends ServiceImpl<StrategyMapper, Strategy> i
             strategy.setLocations(JSONUtil.toJsonStr(strategyAddRequest.getLocations()));
         }
         // 7. 设置默认值
-        strategy.setStrategyStatus(0);
+        strategy.setStrategyStatus(StrategyStatusEnum.PENDING.getValue());
         strategy.setClickCount(0);
         strategy.setLikeCount(0);
         strategy.setCollectCount(0);
         strategy.setCommentCount(0);
         strategy.setHotScore(0.0);
-        strategy.setIsOfficial(0);
+        strategy.setIsOfficial(OfficialStatusEnum.NORMAL.getValue());
         // 8. 保存攻略
         boolean saveResult = this.save(strategy);
         ThrowUtils.throwIf(!saveResult, ErrorCode.OPERATION_ERROR, "攻略上传失败");
@@ -358,7 +360,7 @@ public class StrategyServiceImpl extends ServiceImpl<StrategyMapper, Strategy> i
         // 1. 校验参数
         ThrowUtils.throwIf(strategyQueryRequest == null, ErrorCode.PARAMS_ERROR);
         // 2. 设置只查审核通过的
-        strategyQueryRequest.setStrategyStatus(1);
+        strategyQueryRequest.setStrategyStatus(StrategyStatusEnum.APPROVED.getValue());
         // 3. 分页查询
         long pageNum = strategyQueryRequest.getPageNum();
         long pageSize = strategyQueryRequest.getPageSize();
@@ -376,7 +378,7 @@ public class StrategyServiceImpl extends ServiceImpl<StrategyMapper, Strategy> i
         // 1. 校验参数
         ThrowUtils.throwIf(strategyQueryRequest == null, ErrorCode.PARAMS_ERROR);
         // 2. 设置只查审核通过的
-        strategyQueryRequest.setStrategyStatus(1);
+        strategyQueryRequest.setStrategyStatus(StrategyStatusEnum.APPROVED.getValue());
         // 3. 设置按热度排序
         strategyQueryRequest.setSortField("hotScore");
         strategyQueryRequest.setSortOrder("descend");
@@ -428,7 +430,7 @@ public class StrategyServiceImpl extends ServiceImpl<StrategyMapper, Strategy> i
         ThrowUtils.throwIf(!strategy.getUserId().equals(loginUser.getId()),
                 ErrorCode.NO_AUTH_ERROR, "只能删除自己的攻略");
         // 5. 校验：只能删除审核通过的攻略
-        ThrowUtils.throwIf(strategy.getStrategyStatus() != 1,
+        ThrowUtils.throwIf(!StrategyStatusEnum.APPROVED.getValue().equals(strategy.getStrategyStatus()),
                 ErrorCode.OPERATION_ERROR, "只能删除审核通过的攻略");
         // 6. 逻辑删除
         boolean result = this.removeById(id);
@@ -454,9 +456,8 @@ public class StrategyServiceImpl extends ServiceImpl<StrategyMapper, Strategy> i
     public Page<StrategyVO> listPendingStrategies(StrategyQueryRequest strategyQueryRequest) {
         // 1. 校验参数
         ThrowUtils.throwIf(strategyQueryRequest == null, ErrorCode.PARAMS_ERROR);
-        // 2. 设置只查待审核的
-        strategyQueryRequest.setStrategyStatus(0);
-        // 3. 设置时间排序
+        strategyQueryRequest.setStrategyStatus(StrategyStatusEnum.PENDING.getValue());
+        // 2. 设置时间排序
         strategyQueryRequest.setSortField("createTime");
         strategyQueryRequest.setSortOrder("ascend");
         // 4. 分页查询
@@ -475,13 +476,13 @@ public class StrategyServiceImpl extends ServiceImpl<StrategyMapper, Strategy> i
     public Boolean auditStrategy(Long id, Integer status) {
         // 1. 校验参数
         ThrowUtils.throwIf(id == null || id <= 0, ErrorCode.PARAMS_ERROR);
-        ThrowUtils.throwIf(status == null || (status != 1 && status != 2),
+        ThrowUtils.throwIf(status == null || (!StrategyStatusEnum.APPROVED.getValue().equals(status) && !StrategyStatusEnum.REJECTED.getValue().equals(status)),
                 ErrorCode.PARAMS_ERROR, "审核状态必须为1(通过)或2(拒绝)");
         // 2. 查询攻略
         Strategy strategy = this.getById(id);
         ThrowUtils.throwIf(strategy == null, ErrorCode.NOT_FOUND_ERROR, "攻略不存在");
         // 3. 校验当前状态必须为待审核
-        ThrowUtils.throwIf(strategy.getStrategyStatus() != 0,
+        ThrowUtils.throwIf(!StrategyStatusEnum.PENDING.getValue().equals(strategy.getStrategyStatus()),
                 ErrorCode.OPERATION_ERROR, "只能审核待审核状态的攻略");
         // 4. 更新审核状态
         strategy.setStrategyStatus(status);
@@ -494,13 +495,13 @@ public class StrategyServiceImpl extends ServiceImpl<StrategyMapper, Strategy> i
     public Boolean setOfficial(Long id, Integer isOfficial) {
         // 1. 校验参数
         ThrowUtils.throwIf(id == null || id <= 0, ErrorCode.PARAMS_ERROR);
-        ThrowUtils.throwIf(isOfficial == null || (isOfficial != 0 && isOfficial != 1),
+        ThrowUtils.throwIf(isOfficial == null || (!OfficialStatusEnum.NORMAL.getValue().equals(isOfficial) && !OfficialStatusEnum.OFFICIAL.getValue().equals(isOfficial)),
                 ErrorCode.PARAMS_ERROR, "官方推荐状态必须为0(否)或1(是)");
         // 2. 查询攻略
         Strategy strategy = this.getById(id);
         ThrowUtils.throwIf(strategy == null, ErrorCode.NOT_FOUND_ERROR, "攻略不存在");
         // 3. 只有审核通过的攻略才能设为官方推荐
-        ThrowUtils.throwIf(isOfficial == 1 && strategy.getStrategyStatus() != 1,
+        ThrowUtils.throwIf(OfficialStatusEnum.OFFICIAL.getValue().equals(isOfficial) && !StrategyStatusEnum.APPROVED.getValue().equals(strategy.getStrategyStatus()),
                 ErrorCode.OPERATION_ERROR, "只有审核通过的攻略才能设为官方推荐");
         // 4. 更新官方推荐状态
         strategy.setIsOfficial(isOfficial);
@@ -522,7 +523,7 @@ public class StrategyServiceImpl extends ServiceImpl<StrategyMapper, Strategy> i
         String sortField = strategyQueryRequest.getSortField();
         // 3. 构建自定义查询：官方推荐置顶；locations 存的是地点 ID 的 JSON，需按 ID 子串匹配
         QueryWrapper queryWrapper = QueryWrapper.create()
-                .eq("strategyStatus", 1)
+                .eq("strategyStatus", StrategyStatusEnum.APPROVED.getValue())
                 .like("locations", location);
         if (isOfficial != null) {
             queryWrapper.eq("isOfficial", isOfficial);
@@ -660,7 +661,7 @@ public class StrategyServiceImpl extends ServiceImpl<StrategyMapper, Strategy> i
     public Page<StrategyVO> listUserStrategies(Long userId, StrategyQueryRequest strategyQueryRequest) {
         ThrowUtils.throwIf(strategyQueryRequest == null, ErrorCode.PARAMS_ERROR);
         ThrowUtils.throwIf(userId == null || userId <= 0, ErrorCode.PARAMS_ERROR);
-        strategyQueryRequest.setStrategyStatus(1);
+        strategyQueryRequest.setStrategyStatus(StrategyStatusEnum.APPROVED.getValue());
         strategyQueryRequest.setUserId(userId);
         strategyQueryRequest.setSortField("createTime");
         strategyQueryRequest.setSortOrder("descend");

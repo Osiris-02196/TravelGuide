@@ -13,6 +13,7 @@ import com.oxiris.travelguide.model.dto.notify.NotifyQueryRequest;
 import com.oxiris.travelguide.model.entity.Notify;
 import com.oxiris.travelguide.model.entity.User;
 import com.oxiris.travelguide.model.entity.Strategy;
+import com.oxiris.travelguide.model.enums.notify.NotifyTypeEnum;
 import com.oxiris.travelguide.model.vo.NotifyVO;
 import com.oxiris.travelguide.service.NotifyService;
 import com.oxiris.travelguide.service.UserService;
@@ -69,69 +70,20 @@ public class NotifyServiceImpl extends ServiceImpl<NotifyMapper, Notify> impleme
 
     @Override
     public String buildNotifyContent(Notify notify) {
-        // Step 1: 获取发送者名称
-        String senderName = "系统";
-        if (notify.getSenderId() != null) {
-            User sender = userService.getById(notify.getSenderId());
-            if (sender != null && StrUtil.isNotBlank(sender.getUserName())) {
-                senderName = sender.getUserName();
-            }
+        String senderName = getSenderName(notify.getSenderId());
+        NotifyTypeEnum type = NotifyTypeEnum.getEnumByValue(notify.getType());
+        if (type == null) {
+            return "你收到一条新消息";
         }
-        // Step 2: 根据消息类型和目标类型拼接内容
-        String type = notify.getType();
-        Integer targetType = notify.getTargetType();
-        StringBuilder content = new StringBuilder();
-        if ("system".equals(type)) {
-            // 系统通知
-            if (targetType != null && targetType == 1) {
-                // 攻略审核通知
-                Strategy strategy = strategyService.getById(notify.getTargetId());
-                String strategyTitle = (strategy != null && StrUtil.isNotBlank(strategy.getStrategyTitle()))
-                        ? strategy.getStrategyTitle() : "未知攻略";
-                content.append("你的攻略「").append(strategyTitle).append("」审核状态已更新");
-            } else if (targetType != null && targetType == 3) {
-                // 用户状态变更通知
-                content.append("你的账号状态已变更");
-            } else {
-                content.append("系统通知");
-            }
-        } else if ("like".equals(type)) {
-            if (targetType != null && targetType == 1) {
-                content.append("你的攻略被").append(senderName).append("点赞");
-            } else if (targetType != null && targetType == 2) {
-                content.append("你的评论被").append(senderName).append("点赞");
-            } else {
-                content.append(senderName).append("给你点了个赞");
-            }
-        } else if ("comment".equals(type)) {
-            if (targetType != null && targetType == 1) {
-                content.append("你的攻略被").append(senderName).append("评论");
-            } else if (targetType != null && targetType == 2) {
-                content.append("你的评论被").append(senderName).append("回复");
-            } else {
-                content.append(senderName).append("评论了你");
-            }
-        } else if ("collect".equals(type)) {
-            content.append("你的攻略被").append(senderName).append("收藏");
-        } else if ("pending".equals(type)) {
-            // 管理员待审核通知
-            content.append(senderName).append("的攻略待审核");
-        } else if ("violation".equals(type)) {
-            // 违规通知
-            if (targetType != null && targetType == 1) {
-                content.append("你发布的攻略因违规被删除");
-            } else if (targetType != null && targetType == 2) {
-                content.append("你发布的评论因违规被删除");
-            } else {
-                content.append("你发布的内容因违规被删除");
-            }
-        } else if ("report_result".equals(type)) {
-            // 举报审核结果通知
-            content.append("你的举报审核结果已更新");
-        } else {
-            content.append("你收到一条新消息");
-        }
-        return content.toString();
+        return switch (type) {
+            case SYSTEM -> buildSystemContent(notify);
+            case LIKE -> buildLikeContent(notify.getTargetType(), senderName);
+            case COMMENT -> buildCommentContent(notify.getTargetType(), senderName);
+            case COLLECT -> buildCollectContent(senderName);
+            case PENDING -> buildPendingContent(senderName);
+            case VIOLATION -> buildViolationContent(notify.getTargetType());
+            case REPORT_RESULT -> "你的举报审核结果已更新";
+        };
     }
 
     @Override
@@ -261,7 +213,7 @@ public class NotifyServiceImpl extends ServiceImpl<NotifyMapper, Notify> impleme
         // Step 4: 分页查询（接收者为任意管理员的消息，且类型为 pending）
         QueryWrapper queryWrapper = QueryWrapper.create()
                 .in("receiverId", adminIds.toArray())
-                .eq("type", "pending")
+                .eq("type", NotifyTypeEnum.PENDING.getValue())
                 .orderBy("createTime", false);
         Page<Notify> notifyPage = this.page(Page.of(pageNum, pageSize), queryWrapper);
         // Step 5: 转换VO
@@ -282,7 +234,7 @@ public class NotifyServiceImpl extends ServiceImpl<NotifyMapper, Notify> impleme
         // Step 2: 查询未读 pending 消息数量
         return this.count(QueryWrapper.create()
                 .in("receiverId", adminIds.toArray())
-                .eq("type", "pending")
+                .eq("type", NotifyTypeEnum.PENDING.getValue())
                 .eq("isRead", 0));
     }
 
@@ -297,7 +249,7 @@ public class NotifyServiceImpl extends ServiceImpl<NotifyMapper, Notify> impleme
         // Step 2: 查询所有未读 pending 消息
         List<Notify> unreadList = this.list(QueryWrapper.create()
                 .in("receiverId", adminIds.toArray())
-                .eq("type", "pending")
+                .eq("type", NotifyTypeEnum.PENDING.getValue())
                 .eq("isRead", 0));
         // Step 3: 逐个标记为已读
         if (CollUtil.isNotEmpty(unreadList)) {
@@ -312,5 +264,64 @@ public class NotifyServiceImpl extends ServiceImpl<NotifyMapper, Notify> impleme
             notifyWebSocketHandler.pushUnreadCountUpdate(adminId, 0L);
         }
         return true;
+    }
+
+    // ========== 通知内容构建方法 ==========
+
+    private String getSenderName(Long senderId) {
+        if (senderId == null) {
+            return "系统";
+        }
+        User user = userService.getById(senderId);
+        return (user != null && StrUtil.isNotBlank(user.getUserName()))
+                ? user.getUserName() : "系统";
+    }
+
+    private String buildSystemContent(Notify notify) {
+        Integer targetType = notify.getTargetType();
+        if (targetType != null && targetType == 1) {
+            Strategy strategy = strategyService.getById(notify.getTargetId());
+            String title = (strategy != null && StrUtil.isNotBlank(strategy.getStrategyTitle()))
+                    ? strategy.getStrategyTitle() : "未知攻略";
+            return "你的攻略「" + title + "」审核状态已更新";
+        } else if (targetType != null && targetType == 3) {
+            return "你的账号状态已变更";
+        }
+        return "系统通知";
+    }
+
+    private String buildLikeContent(Integer targetType, String senderName) {
+        if (targetType != null && targetType == 1) {
+            return "你的攻略被" + senderName + "点赞";
+        } else if (targetType != null && targetType == 2) {
+            return "你的评论被" + senderName + "点赞";
+        }
+        return senderName + "给你点了个赞";
+    }
+
+    private String buildCommentContent(Integer targetType, String senderName) {
+        if (targetType != null && targetType == 1) {
+            return "你的攻略被" + senderName + "评论";
+        } else if (targetType != null && targetType == 2) {
+            return "你的评论被" + senderName + "回复";
+        }
+        return senderName + "评论了你";
+    }
+
+    private String buildCollectContent(String senderName) {
+        return "你的攻略被" + senderName + "收藏";
+    }
+
+    private String buildPendingContent(String senderName) {
+        return senderName + "的攻略待审核";
+    }
+
+    private String buildViolationContent(Integer targetType) {
+        if (targetType != null && targetType == 1) {
+            return "你发布的攻略因违规被删除";
+        } else if (targetType != null && targetType == 2) {
+            return "你发布的评论因违规被删除";
+        }
+        return "你发布的内容因违规被删除";
     }
 }

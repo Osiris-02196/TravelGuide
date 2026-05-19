@@ -1,7 +1,5 @@
 package com.oxiris.travelguide.annotation;
 
-import com.oxiris.travelguide.model.enums.UserStatusEnum;
-
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;

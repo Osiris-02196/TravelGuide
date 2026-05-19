@@ -18,8 +18,8 @@ import com.oxiris.travelguide.model.entity.Comment;
 import com.oxiris.travelguide.model.entity.Report;
 import com.oxiris.travelguide.model.entity.Strategy;
 import com.oxiris.travelguide.model.entity.User;
-import com.oxiris.travelguide.model.enums.ReportStatusEnum;
-import com.oxiris.travelguide.model.enums.ReportTargetTypeEnum;
+import com.oxiris.travelguide.model.enums.report.ReportStatusEnum;
+import com.oxiris.travelguide.model.enums.report.ReportTargetTypeEnum;
 import com.oxiris.travelguide.model.vo.ReportVO;
 import com.oxiris.travelguide.service.CommentService;
 import com.oxiris.travelguide.service.NotifyService;
@@ -76,28 +76,25 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
         ThrowUtils.throwIf(loginUser.getId().equals(reportedUserId),
                 ErrorCode.OPERATION_ERROR, "不能举报自己");
         // 4. 校验目标存在，以数据库记录为准确定被举报用户ID
-        if (ReportTargetTypeEnum.STRATEGY.getValue().equals(targetType)) {
-            Strategy strategy = strategyMapper.selectOneById(targetId);
-            if (strategy != null) {
-                // 攻略存在：以数据库的 userId 为准（避免前端传入错误值）
-                reportedUserId = strategy.getUserId();
-            } else {
-                // 攻略已被删除：验证被举报用户存在，仍允许举报
-                User reportedUser = userService.getById(reportedUserId);
-                ThrowUtils.throwIf(reportedUser == null, ErrorCode.NOT_FOUND_ERROR, "被举报用户不存在");
+        ReportTargetTypeEnum targetTypeEnum = ReportTargetTypeEnum.getEnumByValue(targetType);
+        ThrowUtils.throwIf(targetTypeEnum == null, ErrorCode.PARAMS_ERROR, "不支持的举报类型");
+        switch (targetTypeEnum) {
+            case STRATEGY -> {
+                Strategy strategy = strategyMapper.selectOneById(targetId);
+                if (strategy != null) {
+                    reportedUserId = strategy.getUserId();
+                } else {
+                    validateReportedUserExists(reportedUserId);
+                }
             }
-        } else if (ReportTargetTypeEnum.COMMENT.getValue().equals(targetType)) {
-            Comment comment = commentMapper.selectOneById(targetId);
-            if (comment != null) {
-                // 评论存在：以数据库的 userId 为准（避免前端传入错误值）
-                reportedUserId = comment.getUserId();
-            } else {
-                // 评论已被删除：验证被举报用户存在，仍允许举报
-                User reportedUser = userService.getById(reportedUserId);
-                ThrowUtils.throwIf(reportedUser == null, ErrorCode.NOT_FOUND_ERROR, "被举报用户不存在");
+            case COMMENT -> {
+                Comment comment = commentMapper.selectOneById(targetId);
+                if (comment != null) {
+                    reportedUserId = comment.getUserId();
+                } else {
+                    validateReportedUserExists(reportedUserId);
+                }
             }
-        } else {
-            ThrowUtils.throwIf(true, ErrorCode.PARAMS_ERROR, "不支持的举报类型");
         }
         // 5. 构建举报实体
         Report report = Report.builder()
@@ -354,5 +351,13 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
                 }
             }
         }
+    }
+
+    /**
+     * 验证被举报用户存在
+     */
+    private void validateReportedUserExists(Long reportedUserId) {
+        User reportedUser = userService.getById(reportedUserId);
+        ThrowUtils.throwIf(reportedUser == null, ErrorCode.NOT_FOUND_ERROR, "被举报用户不存在");
     }
 }
