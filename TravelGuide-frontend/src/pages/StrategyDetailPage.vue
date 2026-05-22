@@ -1,25 +1,9 @@
 <template>
   <div class="detail-page">
     <div class="detail-card">
-      <!-- Sticky top bar: back button only -->
-      <div class="detail-top-bar">
-        <LeftOutlined class="back-arrow" @click="goBack" />
-        <a-dropdown v-if="loginUserStore.isLoggedIn && detail" trigger="click">
-          <MoreOutlined class="more-icon" />
-          <template #overlay>
-            <a-menu>
-              <a-menu-item key="report" @click="handleReportStrategy">
-                举报
-              </a-menu-item>
-            </a-menu>
-          </template>
-        </a-dropdown>
-      </div>
-
-      <!-- Scrollable content area -->
-      <div class="detail-scroll-area">
-        <a-spin :spinning="loading">
-          <!-- Images - single rectangle with navigation arrows -->
+      <div class="detail-body-row">
+        <!-- 左侧：图片区（固定，不随右侧滚动） -->
+        <aside class="detail-left">
           <div class="detail-image-container">
             <div v-if="allImages.length > 0" class="detail-image-wrapper">
               <div
@@ -43,8 +27,27 @@
             </div>
             <div v-else class="detail-no-image">暂无图片</div>
           </div>
+        </aside>
 
-          <!-- User avatar + name row (below images, left aligned) -->
+        <!-- 右侧：顶栏 + 可滚动内容 + 底栏 -->
+        <div class="detail-right">
+          <div class="detail-top-bar">
+            <LeftOutlined class="back-arrow" @click="goBack" />
+            <a-dropdown v-if="loginUserStore.isLoggedIn && detail" trigger="click">
+              <MoreOutlined class="more-icon" />
+              <template #overlay>
+                <a-menu>
+                  <a-menu-item key="report" @click="handleReportStrategy">
+                    举报
+                  </a-menu-item>
+                </a-menu>
+              </template>
+            </a-dropdown>
+          </div>
+
+          <div ref="detailScrollRef" class="detail-scroll-area">
+            <a-spin :spinning="loading">
+          <!-- User avatar + name row -->
           <div v-if="detail" class="detail-user-row" @click="goToAuthorProfile">
             <img
               :src="displayAvatar(detail)"
@@ -78,10 +81,12 @@
               <EnvironmentOutlined />
               {{ showRouteMap ? '收起路线规划' : '查看作者路线规划' }}
             </a-button>
-            <RouteMapViewer
-              v-if="showRouteMap"
-              :route-data="parseRouteData(routeDataStr)"
-            />
+            <div class="route-map-scaled">
+              <RouteMapViewer
+                v-if="showRouteMap"
+                :route-data="parseRouteData(routeDataStr)"
+              />
+            </div>
           </div>
 
           <!-- Comments -->
@@ -174,46 +179,47 @@
               暂无评论，快来抢沙发~
             </div>
           </div>
-        </a-spin>
-      </div>
+            </a-spin>
+          </div>
 
-      <!-- Fixed bottom bar: input + actions -->
-      <div class="detail-bottom-bar">
-        <div v-if="loginUserStore.isLoggedIn" class="bottom-bar-inner">
-          <div class="bottom-input-wrapper">
-            <div v-if="replyingTo" class="reply-indicator">
-              <span class="reply-to-label">回复 @{{ replyingTo.replyToUserName }}</span>
-              <CloseOutlined class="reply-cancel-btn" @click="cancelReply" />
+          <div class="detail-bottom-bar">
+            <div v-if="loginUserStore.isLoggedIn" class="bottom-bar-inner">
+              <div class="bottom-input-wrapper">
+                <div v-if="replyingTo" class="reply-indicator">
+                  <span class="reply-to-label">回复 @{{ replyingTo.replyToUserName }}</span>
+                  <CloseOutlined class="reply-cancel-btn" @click="cancelReply" />
+                </div>
+                <input
+                  v-model="commentText"
+                  class="bottom-input"
+                  :placeholder="replyingTo ? `回复 @${replyingTo.replyToUserName}...` : '写下你的评论...'"
+                  @keyup.enter="submitComment"
+                />
+              </div>
+              <div class="bottom-actions">
+                <span class="action-btn" @click="handleLike">
+                  <HeartOutlined :style="{ color: liked ? '#ff4d4f' : '#999' }" />
+                  {{ likeCount }}
+                </span>
+                <span class="action-btn" @click="handleCollect">
+                  <StarOutlined :style="{ color: collected ? '#faad14' : '#999' }" />
+                  {{ collectCount }}
+                </span>
+                <a-button
+                  type="primary"
+                  size="small"
+                  :loading="submittingComment"
+                  @click="submitComment"
+                  class="bottom-submit-btn"
+                >
+                  发表
+                </a-button>
+              </div>
             </div>
-            <input
-              v-model="commentText"
-              class="bottom-input"
-              :placeholder="replyingTo ? `回复 @${replyingTo.replyToUserName}...` : '写下你的评论...'"
-              @keyup.enter="submitComment"
-            />
+            <div v-else class="bottom-bar-login">
+              <a @click="goToLogin">登录</a>后可评论
+            </div>
           </div>
-          <div class="bottom-actions">
-            <span class="action-btn" @click="handleLike">
-              <HeartOutlined :style="{ color: liked ? '#ff4d4f' : '#999' }" />
-              {{ likeCount }}
-            </span>
-            <span class="action-btn" @click="handleCollect">
-              <StarOutlined :style="{ color: collected ? '#faad14' : '#999' }" />
-              {{ collectCount }}
-            </span>
-            <a-button
-              type="primary"
-              size="small"
-              :loading="submittingComment"
-              @click="submitComment"
-              class="bottom-submit-btn"
-            >
-              发表
-            </a-button>
-          </div>
-        </div>
-        <div v-else class="bottom-bar-login">
-          <a @click="goToLogin">登录</a>后可评论
         </div>
       </div>
     </div>
@@ -238,6 +244,7 @@ import { message } from 'ant-design-vue'
 const route = useRoute()
 const router = useRouter()
 const loginUserStore = useLoginUserStore()
+const detailScrollRef = ref<HTMLElement | null>(null)
 
 const detail = ref<API.StrategyVO | null>(null)
 const loading = ref(false)
@@ -325,11 +332,18 @@ function scrollToComment() {
   if (!commentId) return
   setTimeout(() => {
     const el = document.getElementById(`comment-${commentId}`)
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      el.classList.add('highlight-flash')
-      setTimeout(() => { el.classList.remove('highlight-flash') }, 2000)
-    }
+    const scrollEl = detailScrollRef.value
+    if (!el || !scrollEl) return
+    const elTop = el.getBoundingClientRect().top
+    const areaTop = scrollEl.getBoundingClientRect().top
+    const areaHeight = scrollEl.clientHeight
+    const elHeight = el.offsetHeight
+    scrollEl.scrollTo({
+      top: scrollEl.scrollTop + elTop - areaTop - areaHeight / 2 + elHeight / 2,
+      behavior: 'smooth',
+    })
+    el.classList.add('highlight-flash')
+    setTimeout(() => { el.classList.remove('highlight-flash') }, 2000)
   }, 500)
 }
 
@@ -630,21 +644,49 @@ function goToUserProfile(userId: string | number | undefined) {
 
 .detail-card {
   height: 100%;
-  display: flex;
-  flex-direction: column;
-  width: 800px;
+  width: 100%;
+  max-width: 1200px;
   margin: 0 auto;
   background: #fff;
   overflow: hidden;
   border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
-/* ===== Top Bar ===== */
+.detail-body-row {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.detail-left {
+  flex: 0 0 46%;
+  max-width: 520px;
+  min-width: 280px;
+  border-right: 1px solid #f0f0f0;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #fafafa;
+}
+
+.detail-right {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ===== Top Bar（右侧固定，不随内容滚动） ===== */
 .detail-top-bar {
-  position: sticky;
-  top: 0;
-  z-index: 10;
   flex-shrink: 0;
+  z-index: 10;
   padding: 10px 16px;
   border-bottom: 1px solid #f0f0f0;
   background: #fff;
@@ -687,24 +729,29 @@ function goToUserProfile(userId: string | number | undefined) {
   color: #666;
 }
 
-/* ===== Scrollable Content ===== */
+/* ===== 右侧可滚动内容区 ===== */
 .detail-scroll-area {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 16px;
   min-height: 0;
 }
 
-/* Images - single rectangle with arrows */
+/* ===== 左侧图片区 ===== */
 .detail-image-container {
+  flex: 1;
   width: 100%;
-  margin-bottom: 16px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .detail-image-wrapper {
   position: relative;
+  flex: 1;
   width: 100%;
-  height: 450px;
+  min-height: 200px;
   background: #f5f5f5;
   border-radius: 8px;
   overflow: hidden;
@@ -768,13 +815,13 @@ function goToUserProfile(userId: string | number | undefined) {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex: 1;
   width: 100%;
-  height: 200px;
+  min-height: 200px;
   background: #f5f5f5;
   color: #bbb;
   font-size: 14px;
   border-radius: 8px;
-  margin-bottom: 16px;
 }
 
 /* User info row (below images, left aligned) */
@@ -863,6 +910,21 @@ function goToUserProfile(userId: string | number | undefined) {
   background: #e6f7ff;
   border-color: #40a9ff;
   color: #40a9ff;
+}
+
+/* 路线规划整体缩至 80%（宽度 + 地图高度，避免 zoom 导致地图渲染异常） */
+.route-map-scaled {
+  width: 80%;
+  margin: 0 auto;
+  font-size: 80%;
+}
+
+.route-map-scaled :deep(.map-container) {
+  height: 280px;
+}
+
+.route-map-scaled :deep(.route-viewer) {
+  margin-bottom: 12.8px;
 }
 
 /* ===== Comments ===== */
@@ -1118,12 +1180,10 @@ function goToUserProfile(userId: string | number | undefined) {
   color: #333;
 }
 
-/* ===== Bottom Bar ===== */
+/* ===== 右侧底栏（固定，不随内容滚动） ===== */
 .detail-bottom-bar {
-  position: sticky;
-  bottom: 0;
-  z-index: 10;
   flex-shrink: 0;
+  z-index: 10;
   padding: 8px 16px;
   border-top: 1px solid #f0f0f0;
   background: #fff;

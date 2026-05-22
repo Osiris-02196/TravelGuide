@@ -73,7 +73,8 @@ A full-stack "Travel Guide" (旅游攻略) application with a Spring Boot backen
 ## Prerequisites
 
 - **MySQL** and **Redis** must be running locally before starting the backend
-- **application-local.yml** (gitignored) must exist with COS credentials and DeepSeek API key. Copy from `application.yml` structure and fill in your own secrets
+- **application-local.yml** (gitignored) — COS credentials, DeepSeek API key, AMap security code. Copy from `application.yml` structure and fill in your own secrets
+- **Frontend `.env`** (gitignored) — must contain `VITE_AMAP_KEY` for route planning maps
 - Node.js and npm for frontend development
 
 ## Development Commands
@@ -81,8 +82,8 @@ A full-stack "Travel Guide" (旅游攻略) application with a Spring Boot backen
 ### Backend (requires MySQL + Redis running locally)
 ```sh
 # Build the project (skip tests)
-./mvnw package -DskipTests
-# On Windows: mvnw.cmd package -DskipTests
+./mvnw package -DskipTests        # Unix
+mvnw.cmd package -DskipTests      # Windows
 
 # Run tests (only one test class exists — context-load check)
 ./mvnw test
@@ -99,14 +100,12 @@ A full-stack "Travel Guide" (旅游攻略) application with a Spring Boot backen
 # In TravelGuide-frontend/ directory
 npm install           # Install dependencies
 npm run dev           # Start dev server with hot-reload (port 5173)
-npm run build         # Type-check + build for production (uses `run-p` for concurrency)
+npm run build         # Type-check + build for production
 npm run preview       # Preview production build locally
 npm run lint          # ESLint fix
 npm run format        # Prettier format
 npm run type-check    # TypeScript check only (vue-tsc --build)
-npm run openapi2ts    # Regenerate API typings from Knife4j OpenAPI spec
-
-# Note: .env (gitignored) must contain VITE_AMAP_KEY for route planning maps
+npm run openapi2ts    # Regenerate API typings from Knife4j OpenAPI spec (requires backend running on :8082)
 ```
 
 ## Project Structure (high-level)
@@ -117,16 +116,16 @@ TravelGuide/                          # Spring Boot backend (port 8082, /api/*)
 │   ├── ai/                           # LangChain4j AI service
 │   ├── annotation/ + aop/            # @AuthCheck, @StatusCheck + interceptors
 │   ├── common/                       # BaseResponse, ErrorCode, ResultUtils, PageRequest, DeleteRequest
-│   ├── config/                       # CORS, COS, WebSocket, ChatModel, RedisChatMemory
-│   ├── controller/ → service/ → mapper/   # 9 REST controllers (User, Strategy, Comment, Location, Follow, Notify, TravelAi, AiChatSession, Report)
+│   ├── config/                       # CORS, COS, WebSocket, ChatModel, RedisChatMemory, RestTemplate
+│   ├── controller/ → service/ → mapper/   # REST controllers (User, Strategy, Comment, Location, Follow, Notify, TravelAi, AiChatSession, Report, AmapProxy)
 │   ├── model/{dto,entity,enums,vo}   # Request DTOs, entities, enums, view objects
 │   ├── manager/                      # CosManager (Tencent COS upload)
 │   ├── websocket/                    # NotifyWebSocketHandler
 │   └── generator/                    # MyBatis-Flex code generator (run-and-forget)
 ├── src/main/resources/
 │   ├── mapper/ + prompt/             # XML mappers + AI system prompt
-│   ├── application.yml               # DB, Redis, session 30d, DeepSeek config
-│   └── application-local.yml         # Local secrets (COS + API key) — gitignored
+│   ├── application.yml               # Base config (DB, Redis, session 30d, DeepSeek, server port 8082, /api)
+│   └── application-local.yml         # Local secrets (COS, API key, AMap) — gitignored
 ├── sql/                              # Database schema (create_table.sql)
 └── TravelGuide-frontend/             # Vue 3 + Vite (port 5173, /api/* proxied)
     └── src/
@@ -134,6 +133,8 @@ TravelGuide/                          # Spring Boot backend (port 8082, /api/*)
         ├── components/ + layouts/    # NotifyBell, AI chat, BasicLayout
         ├── pages/                    # HomePage, StrategyDetail, admin/, user/
         ├── stores/                   # Pinia: loginUser, aiChat, notify
+        ├── utils/                    # amap.ts (AMap loader singleton)
+        ├── types/                    # amap.d.ts, global.d.ts
         └── request.ts + router/      # Axios instance + Vue Router
 ```
 
@@ -297,12 +298,13 @@ Two private methods in StrategyServiceImpl:
 
 ### Route Planning (高德地图)
 Users can plan routes when creating a strategy and view them on the detail page:
-- **Frontend**: `RouteMapEditor.vue` / `RouteMapViewer.vue` in `src/components/` — uses `@amap/amap-jsapi-loader` with AMap JS API 2.0. AMap loader is a **singleton** in `utils/amap.ts` with security proxy configured via `window._AMapSecurityConfig = { serviceHost: '/api/amap-proxy' }`
-- **Backend**: `AmapProxyController` proxies `restapi.amap.com` requests and injects `securityJsCode` (keeps key server-side)
-- **Data Flow**: `RouteResultData` JSON (transportType, origin, destination, waypoints, polyline, distance, duration) stored in strategy's `routeData` TEXT column
-- **Transport types**: driving (AMap.Driving with waypoints), walking (AMap.Walking), riding (AMap.Riding)
-- **Credentials**: Vite env `VITE_AMAP_KEY` (frontend JSAPI key), `amap.security-js-code` in `application-local.yml` (backend proxy key)
-- **Type declarations**: Local AMap types at `src/types/amap.d.ts` (Map, Marker, Polyline, LngLat, Pixel, ToolBar, Scale)
+- **Frontend**: `RouteMapEditor.vue` / `RouteMapViewer.vue` in `src/components/` — uses `@amap/amap-jsapi-loader` singleton via `utils/amap.ts` with security proxy `serviceHost: '/api/amap-proxy'`
+- **Backend**: `AmapProxyController` proxies `restapi.amap.com` requests, injects `securityJsCode` (keeps key server-side)
+- **Data Flow**: `RouteResultData` JSON (transportType, origin, destination, waypoints, polyline, distance, duration, originName, destinationName, waypointNames) stored in strategy's `routeData` TEXT column
+- **Multi-leg routing**: Route is calculated segment-by-segment (origin→wp₁, wp₁→wp₂, ..., wpₙ→destination) for all transport types, ensuring waypoints are always respected (Walking/Riding APIs don't natively support waypoints)
+- **Transport types**: driving, walking, riding
+- **Credentials**: `VITE_AMAP_KEY` in frontend `.env`; `amap.security-js-code` in `application-local.yml`
+- **Type declarations**: `types/amap.d.ts` (Map, Marker, Polyline, LngLat, Geocoder, PlaceSearch, etc.)
 
 ### Database
 Tables: user, strategy, location, comment, strategy_like, strategy_collect, comment_like, strategy_location, notify, ai_chat_session, ai_chat_message, user_follow, report
