@@ -37,4 +37,9 @@ public class StrategyAddRequest implements Serializable {
      * 地点列表（多选）
      */
     private List<String> locations;
+    
+    /**
+     * 路线规划数据（JSON格式）
+     */
+    private String routeData;
 }

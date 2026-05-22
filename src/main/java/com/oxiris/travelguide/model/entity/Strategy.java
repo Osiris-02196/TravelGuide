@@ -108,6 +108,12 @@ public class Strategy implements Serializable {
     private String locations;
 
     /**
+    * 路线规划数据（JSON格式）
+    */
+    @Column("routeData")
+    private String routeData;
+
+    /**
      * 是否为官方推荐（0-否 1-是）
      */
     @Column("isOfficial")

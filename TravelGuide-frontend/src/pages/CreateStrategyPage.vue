@@ -66,6 +66,11 @@
           />
         </a-form-item>
 
+        <!-- Route Planning -->
+        <a-form-item label="路线规划">
+          <RouteMapEditor @change="handleRouteChange" />
+        </a-form-item>
+
         <!-- Buttons -->
         <a-form-item>
           <a-space>
@@ -85,6 +90,7 @@ import { PlusOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { addStrategy, uploadImage } from '@/api/strategyController'
 import { listProvinces, listCities } from '@/api/locationController'
+import RouteMapEditor, { type RouteResultData } from '@/components/RouteMapEditor.vue'
 
 const router = useRouter()
 const formRef = ref()
@@ -97,11 +103,13 @@ const formState = reactive<{
   strategyContent: string
   strategyTags: string[]
   locations: string[]
+  routeData: string
 }>({
   strategyTitle: '',
   strategyContent: '',
   strategyTags: [],
   locations: [],
+  routeData: '', // 存储路线规划数据的JSON字符串
 })
 
 const rules = {
@@ -194,6 +202,7 @@ async function handleSubmit() {
       imageUrls: uploadedUrls.value,
       strategyTags: formState.strategyTags.length > 0 ? formState.strategyTags : undefined,
       locations: formState.locations.length > 0 ? formState.locations.map(String) : undefined,
+      routeData: formState.routeData || undefined,
     })
     if (res.data?.code === 0) {
       message.success('攻略上传成功，等待审核')
@@ -210,6 +219,10 @@ async function handleSubmit() {
 
 function handleCancel() {
   router.back()
+}
+
+function handleRouteChange(data: RouteResultData | null) {
+  formState.routeData = data ? JSON.stringify(data) : ''
 }
 </script>
 

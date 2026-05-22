@@ -88,6 +88,12 @@ public class StrategyVO implements Serializable {
      * 地点标签
      */
     private String locations;
+    
+    /**
+     * 路线规划数据（JSON格式）
+     */
+    private String routeData;
+
     /**
      * 是否为官方推荐（0-否 1-是）
      */

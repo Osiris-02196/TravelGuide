@@ -202,6 +202,7 @@ ALTER TABLE comment
 
 ALTER TABLE comment ADD INDEX idx_parentId (parentId);
 
+ALTER TABLE strategy ADD COLUMN routeData TEXT NULL COMMENT '路线规划数据（JSON）';
 
 
 

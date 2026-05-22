@@ -149,6 +149,10 @@ public class StrategyServiceImpl extends ServiceImpl<StrategyMapper, Strategy> i
         if (CollUtil.isNotEmpty(strategyAddRequest.getLocations())) {
             strategy.setLocations(JSONUtil.toJsonStr(strategyAddRequest.getLocations()));
         }
+        // 6. 处理路线规划数据 -> JSON字符串
+        if (StrUtil.isNotBlank(strategyAddRequest.getRouteData())) {
+            strategy.setRouteData(strategyAddRequest.getRouteData());
+        }
         // 7. 设置默认值
         strategy.setStrategyStatus(StrategyStatusEnum.PENDING.getValue());
         strategy.setClickCount(0);
@@ -459,7 +463,7 @@ public class StrategyServiceImpl extends ServiceImpl<StrategyMapper, Strategy> i
         strategyQueryRequest.setStrategyStatus(StrategyStatusEnum.PENDING.getValue());
         // 2. 设置时间排序
         strategyQueryRequest.setSortField("createTime");
-        strategyQueryRequest.setSortOrder("ascend");
+        strategyQueryRequest.setSortOrder("descend");
         // 4. 分页查询
         long pageNum = strategyQueryRequest.getPageNum();
         long pageSize = strategyQueryRequest.getPageSize();

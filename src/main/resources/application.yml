@@ -60,4 +60,8 @@ langchain4j:
       log-requests: true
       log-responses: true
 
+# 高德地图配置（安全密钥在 application-local.yml 中覆盖）
+amap:
+  security-js-code: ${AMAP_SECURITY_CODE:}
+
 

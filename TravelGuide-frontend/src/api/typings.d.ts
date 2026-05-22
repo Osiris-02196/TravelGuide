@@ -245,6 +245,7 @@ declare namespace API {
     imageUrls?: string[]
     strategyTags?: string[]
     locations?: string[]
+    routeData?: string
   }
 
   type StrategyQueryRequest = {

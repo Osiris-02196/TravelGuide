@@ -69,6 +69,21 @@
           <!-- Content -->
           <div class="detail-body">{{ detail?.strategyContent }}</div>
 
+          <!-- Route Map -->
+          <div v-if="routeDataStr" class="route-map-section">
+            <a-button
+              class="route-map-toggle-btn"
+              @click="showRouteMap = !showRouteMap"
+            >
+              <EnvironmentOutlined />
+              {{ showRouteMap ? '收起路线规划' : '查看作者路线规划' }}
+            </a-button>
+            <RouteMapViewer
+              v-if="showRouteMap"
+              :route-data="parseRouteData(routeDataStr)"
+            />
+          </div>
+
           <!-- Comments -->
           <div class="comment-section">
             <div class="comment-header">
@@ -211,11 +226,12 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { HeartOutlined, StarOutlined, LeftOutlined, RightOutlined, MoreOutlined, CloseOutlined, DownOutlined, UpOutlined } from '@ant-design/icons-vue'
+import { HeartOutlined, StarOutlined, LeftOutlined, RightOutlined, MoreOutlined, CloseOutlined, DownOutlined, UpOutlined, EnvironmentOutlined } from '@ant-design/icons-vue'
 import { getStrategyDetail, likeStrategy, collectStrategy } from '@/api/strategyController'
 import { addComment, listComments, likeComment, listReplies } from '@/api/commentController'
 import { useLoginUserStore } from '@/stores/loginUser'
 import ReportDialog from '@/components/ReportDialog.vue'
+import RouteMapViewer from '@/components/RouteMapViewer.vue'
 import dayjs from 'dayjs'
 import { message } from 'ant-design-vue'
 
@@ -250,6 +266,7 @@ const defaultAvatar = 'https://api.dicebear.com/7.x/initials/svg?seed=User'
 
 const allImages = ref<string[]>([])
 const currentImageIndex = ref(0)
+const showRouteMap = ref(false)
 
 function routeStrategyId(): string | null {
   const raw = route.params.id
@@ -257,6 +274,11 @@ function routeStrategyId(): string | null {
   if (v === undefined || v === null || String(v).trim() === '') return null
   return String(v)
 }
+
+const routeDataStr = computed(() => {
+  const d = detail.value as any
+  return d?.routeData || ''
+})
 
 const detailTags = computed(() => {
   const tags = detail.value?.strategyTags
@@ -571,6 +593,14 @@ function handleReportComment(c: API.CommentVO) {
   reportDialogRef.value?.open('comment', c.id, c.userId)
 }
 
+function parseRouteData(json: string) {
+  try {
+    return JSON.parse(json)
+  } catch {
+    return null
+  }
+}
+
 function goBack() {
   router.back()
 }
@@ -813,6 +843,26 @@ function goToUserProfile(userId: string | number | undefined) {
   margin-bottom: 24px;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* Route Map Toggle */
+.route-map-section {
+  margin-bottom: 24px;
+}
+.route-map-toggle-btn {
+  width: 100%;
+  height: 44px;
+  font-size: 14px;
+  border-radius: 8px;
+  border: 1px dashed #1890ff;
+  color: #1890ff;
+  background: #f0f9ff;
+  transition: all 0.2s;
+}
+.route-map-toggle-btn:hover {
+  background: #e6f7ff;
+  border-color: #40a9ff;
+  color: #40a9ff;
 }
 
 /* ===== Comments ===== */

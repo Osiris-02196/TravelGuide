@@ -163,7 +163,11 @@ function onMainScroll() {
 }
 
 onActivated(() => {
-  // 页面被激活时，开始跟踪滚动位置
+  // 页面被激活时，重新加载数据（keep-alive 缓存了组件，onMounted 只会执行一次）
+  currentPage.value = 1
+  fetchData()
+
+  // 跟踪滚动位置
   const el = document.querySelector('.main-content')
   if (el) el.addEventListener('scroll', onMainScroll, { passive: true })
 
