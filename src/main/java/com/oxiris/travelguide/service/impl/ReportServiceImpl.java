@@ -191,13 +191,15 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
         // 4. 校验当前状态必须为待审核
         ThrowUtils.throwIf(!ReportStatusEnum.PENDING.getValue().equals(report.getStatus()),
                 ErrorCode.OPERATION_ERROR, "只能审核待审核状态的举报");
-        // 5. 更新举报审核信息
+        // 5. 条件更新举报审核状态（WHERE id = ? AND status = 'pending'），避免并发覆盖
         report.setStatus(status);
         report.setReviewRemark(reviewRemark);
         report.setReviewAdminId(adminUser.getId());
         report.setReviewTime(LocalDateTime.now());
-        boolean updateResult = this.updateById(report);
-        ThrowUtils.throwIf(!updateResult, ErrorCode.OPERATION_ERROR, "审核举报失败");
+        int affected = mapper.updateByQuery(report, QueryWrapper.create()
+                .eq("id", id)
+                .eq("status", ReportStatusEnum.PENDING.getValue()));
+        ThrowUtils.throwIf(affected == 0, ErrorCode.OPERATION_ERROR, "审核失败，举报状态已被其他管理员修改");
         // 6. 审核通过：通知相关用户，并处理删除被举报内容
         if (ReportStatusEnum.APPROVED.getValue().equals(status)) {
             Boolean deleteTarget = reportReviewRequest.getDeleteTarget();

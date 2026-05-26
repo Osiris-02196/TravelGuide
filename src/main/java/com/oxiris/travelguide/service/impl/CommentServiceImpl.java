@@ -84,11 +84,19 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
         boolean saved = this.save(comment);
         ThrowUtils.throwIf(!saved, ErrorCode.OPERATION_ERROR);
 
-        // 更新攻略的评论数
+        // 原子更新攻略的评论数和热度分
         Strategy strategy = strategyService.getById(strategyId);
         if (strategy != null) {
-            strategy.setCommentCount(strategy.getCommentCount() != null ? strategy.getCommentCount() + 1 : 1);
-            strategyService.updateById(strategy);
+            UpdateChain.of(Strategy.class)
+                    .setRaw(Strategy::getCommentCount, "COALESCE(commentCount, 0) + 1")
+                    .setRaw(Strategy::getHotScore, StrategyServiceImpl.hotScoreSql(
+                            "COALESCE(clickCount, 0)",
+                            "COALESCE(likeCount, 0)",
+                            "COALESCE(collectCount, 0)",
+                            "COALESCE(commentCount, 0) + 1"
+                    ))
+                    .where(Strategy::getId).eq(strategyId)
+                    .update();
             // 发送通知给攻略作者
             if (!strategy.getUserId().equals(loginUser.getId())) {
                 try {
@@ -183,7 +191,7 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
         ThrowUtils.throwIf(comment == null, ErrorCode.NOT_FOUND_ERROR);
 
         boolean updated = UpdateChain.of(Comment.class)
-                .set(Comment::getLikeCount, comment.getLikeCount() + 1)
+                .setRaw(Comment::getLikeCount, "likeCount + 1")
                 .where(Comment::getId).eq(id)
                 .update();
         ThrowUtils.throwIf(!updated, ErrorCode.OPERATION_ERROR, "点赞失败");

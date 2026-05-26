@@ -47,63 +47,133 @@
         >
           {{ isSelf ? '我的攻略' : '投稿' }}
         </div>
+        <div
+          v-if="isSelf"
+          :class="['profile-tab', { active: strategyTab === 'collect' }]"
+          @click="switchStrategyTab('collect')"
+        >
+          我的收藏
+        </div>
       </div>
 
       <!-- Strategy List -->
-      <a-spin :spinning="strategyLoading">
-        <div v-if="strategyList.length > 0" class="strategy-list">
-          <div
-            v-for="item in strategyList"
-            :key="item.id"
-            class="strategy-card-horizontal"
-            @click="goToDetail(item.id)"
-          >
-            <div class="card-content-area">
-              <div class="card-title">{{ item.strategyTitle }}</div>
-              <div class="card-summary">{{ truncateContent(item.strategyContent) }}</div>
-              <div v-if="getFirstThreeImages(item.imageUrls).length > 0" class="card-images-row">
-                <div
-                  v-for="(img, idx) in getFirstThreeImages(item.imageUrls)"
-                  :key="idx"
-                  class="card-image-wrap"
-                >
-                  <img
-                    :src="img"
-                    :alt="'img' + idx"
-                    @error="handleImgError"
-                  />
+      <template v-if="strategyTab === 'strategies'">
+        <a-spin :spinning="strategyLoading">
+          <div v-if="strategyList.length > 0" class="strategy-list">
+            <div
+              v-for="item in strategyList"
+              :key="item.id"
+              class="strategy-card-horizontal"
+              @click="goToDetail(item.id)"
+            >
+              <div class="card-content-area">
+                <div class="card-title">{{ item.strategyTitle }}</div>
+                <div class="card-summary">{{ truncateContent(item.strategyContent) }}</div>
+                <div v-if="getFirstThreeImages(item.imageUrls).length > 0" class="card-images-row">
+                  <div
+                    v-for="(img, idx) in getFirstThreeImages(item.imageUrls)"
+                    :key="idx"
+                    class="card-image-wrap"
+                  >
+                    <img
+                      :src="img"
+                      :alt="'img' + idx"
+                      @error="handleImgError"
+                    />
+                  </div>
                 </div>
+                <div v-else class="card-no-img">暂无图片</div>
               </div>
-              <div v-else class="card-no-img">暂无图片</div>
-            </div>
-            <div class="card-tags">
-              <a-tag v-for="tag in parseTags(item.strategyTags)" :key="tag" color="orange">
-                {{ tag }}
-              </a-tag>
-            </div>
-            <div class="card-info-row-bottom">
-              <span class="card-stats">
-                <span class="stat-item"><HeartOutlined /> {{ item.likeCount || 0 }}</span>
-                <span class="stat-item"><MessageOutlined /> {{ item.commentCount || 0 }}</span>
-              </span>
+              <div class="card-tags">
+                <a-tag v-for="tag in parseTags(item.strategyTags)" :key="tag" color="orange">
+                  {{ tag }}
+                </a-tag>
+              </div>
+              <div class="card-info-row-bottom">
+                <span class="card-stats">
+                  <span class="stat-item"><HeartOutlined /> {{ item.likeCount || 0 }}</span>
+                  <span class="stat-item"><MessageOutlined /> {{ item.commentCount || 0 }}</span>
+                </span>
+              </div>
             </div>
           </div>
+          <div v-else-if="!strategyLoading" class="empty-state">
+            {{ isSelf ? '还没有发布攻略' : '该用户还没有投稿' }}
+          </div>
+        </a-spin>
+        <div v-if="strategyTotal > 0" class="pagination-wrap">
+          <a-pagination
+            v-model:current="strategyPage"
+            :total="strategyTotal"
+            :page-size="strategyPageSize"
+            :show-size-changer="false"
+            @change="fetchStrategies"
+          />
         </div>
-        <div v-else-if="!strategyLoading" class="empty-state">
-          {{ isSelf ? '还没有发布攻略' : '该用户还没有投稿' }}
-        </div>
-      </a-spin>
+      </template>
 
-      <!-- Pagination -->
-      <div v-if="strategyTotal > 0" class="pagination-wrap">
-        <a-pagination
-          v-model:current="strategyPage"
-          :total="strategyTotal"
-          :page-size="strategyPageSize"
-          :show-size-changer="false"
-          @change="fetchStrategies"
-        />
-      </div>
+      <!-- Collect List -->
+      <template v-if="strategyTab === 'collect'">
+        <a-spin :spinning="collectLoading">
+          <div v-if="collectList.length > 0" class="strategy-list">
+            <div
+              v-for="item in collectList"
+              :key="item.collectId"
+              class="strategy-card-horizontal"
+              @click="goToDetail(item.id)"
+            >
+              <div class="card-content-area">
+                <div class="card-title">{{ item.strategyTitle }}</div>
+                <div class="card-summary">{{ truncateContent(item.strategyContent) }}</div>
+                <div v-if="getFirstThreeImages(item.imageUrls).length > 0" class="card-images-row">
+                  <div
+                    v-for="(img, idx) in getFirstThreeImages(item.imageUrls)"
+                    :key="idx"
+                    class="card-image-wrap"
+                  >
+                    <img
+                      :src="img"
+                      :alt="'img' + idx"
+                      @error="handleImgError"
+                    />
+                  </div>
+                </div>
+                <div v-else class="card-no-img">暂无图片</div>
+              </div>
+              <div class="card-tags">
+                <a-tag v-for="tag in parseTags(item.strategyTags)" :key="tag" color="orange">
+                  {{ tag }}
+                </a-tag>
+              </div>
+              <div class="card-info-row-bottom card-info-row-bottom-collect">
+                <span class="card-location">
+                  <EnvironmentOutlined />
+                  {{ formatLocation(item.locations) }}
+                </span>
+                <span class="card-stats">
+                  <span class="stat-item"><HeartOutlined /> {{ item.likeCount || 0 }}</span>
+                  <span class="stat-item"><StarOutlined /> {{ item.collectCount || 0 }}</span>
+                </span>
+              </div>
+              <div class="card-delete-row" @click.stop>
+                <a-popconfirm title="确定取消收藏？" ok-text="确定" cancel-text="取消" @confirm="handleUncollect(item)">
+                  <a-button type="primary" danger size="small">取消收藏</a-button>
+                </a-popconfirm>
+              </div>
+            </div>
+          </div>
+          <div v-else-if="!collectLoading" class="empty-state">暂无收藏</div>
+        </a-spin>
+        <div v-if="collectTotal > 0" class="pagination-wrap">
+          <a-pagination
+            v-model:current="collectPage"
+            :total="collectTotal"
+            :page-size="collectPageSize"
+            :show-size-changer="false"
+            @change="fetchCollectList"
+          />
+        </div>
+      </template>
     </div>
   </div>
 </template>
@@ -111,11 +181,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { HeartOutlined, MessageOutlined } from '@ant-design/icons-vue'
+import { HeartOutlined, MessageOutlined, EnvironmentOutlined, StarOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { useLoginUserStore } from '@/stores/loginUser'
 import { getUserProfile } from '@/api/userController'
-import { listUserStrategies, listMyStrategies } from '@/api/strategyController'
+import { listUserStrategies, listMyStrategies, listUserCollectStrategies, uncollectStrategy } from '@/api/strategyController'
 import { toggleFollow, checkFollowed, getFollowCounts } from '@/api/followController'
 
 const router = useRouter()
@@ -175,6 +245,13 @@ const strategyLoading = ref(false)
 const strategyPage = ref(1)
 const strategyPageSize = 20
 const strategyTotal = ref(0)
+
+// Collect list
+const collectList = ref<any[]>([])
+const collectLoading = ref(false)
+const collectPage = ref(1)
+const collectPageSize = 20
+const collectTotal = ref(0)
 
 const SCROLL_KEY = 'UserProfile_scrollTop'
 
@@ -284,8 +361,14 @@ async function handleToggleFollow() {
   }
 }
 
-function switchStrategyTab(_tab: string) {
-  // Only one tab for now
+function switchStrategyTab(tab: string) {
+  strategyTab.value = tab
+  strategyPage.value = 1
+  if (tab === 'collect') {
+    fetchCollectList()
+  } else {
+    fetchStrategies()
+  }
 }
 
 async function fetchStrategies(page = 1) {
@@ -316,6 +399,63 @@ async function fetchStrategies(page = 1) {
     // ignore
   } finally {
     strategyLoading.value = false
+  }
+}
+
+async function fetchCollectList(page = 1) {
+  collectLoading.value = true
+  try {
+    const res = await listUserCollectStrategies({
+      pageNum: page,
+      pageSize: collectPageSize,
+    })
+    if (res.data?.code === 0 && res.data?.data) {
+      collectTotal.value = res.data.data.totalRow || 0
+      collectPage.value = page
+      collectList.value = (res.data.data.records || []).map((item: API.StrategyCollectVO) => ({
+        id: item.strategyId,
+        strategyTitle: item.strategyTitle,
+        imageUrls: item.imageUrls || (item.coverImage ? JSON.stringify([item.coverImage]) : ''),
+        strategyContent: item.strategyContent || '',
+        likeCount: item.likeCount,
+        collectCount: item.collectCount,
+        locations: item.locations || '',
+        strategyTags: item.strategyTags,
+        collectId: item.id,
+      }))
+    }
+  } catch {
+    message.error('加载收藏失败')
+  } finally {
+    collectLoading.value = false
+  }
+}
+
+async function handleUncollect(item: any) {
+  if (!item.id) return
+  try {
+    const res = await uncollectStrategy({ id: item.id })
+    if (res.data?.code === 0) {
+      message.success('取消收藏成功')
+      fetchCollectList(collectPage.value)
+    } else {
+      message.error(res.data?.message || '取消收藏失败')
+    }
+  } catch {
+    message.error('取消收藏失败')
+  }
+}
+
+function formatLocation(locations?: string): string {
+  if (!locations) return ''
+  try {
+    const arr = JSON.parse(locations)
+    if (Array.isArray(arr) && arr.length > 0) {
+      return arr.slice(0, 2).join(' · ')
+    }
+    return ''
+  } catch {
+    return locations || ''
   }
 }
 
@@ -573,6 +713,26 @@ function handleImgError(e: Event) {
   gap: 3px;
   color: #999;
   font-size: 12px;
+}
+
+.card-location {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #666;
+  font-size: 12px;
+}
+
+.card-delete-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.card-info-row-bottom-collect {
+  justify-content: space-between;
 }
 
 .empty-state {

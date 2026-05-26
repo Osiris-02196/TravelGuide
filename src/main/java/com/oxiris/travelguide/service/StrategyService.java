@@ -61,17 +61,6 @@ public interface StrategyService extends IService<Strategy> {
     QueryWrapper getQueryWrapper(StrategyQueryRequest strategyQueryRequest);
 
     /**
-     * 计算热度分数
-     *
-     * @param clickCount   点击量
-     * @param likeCount    点赞量
-     * @param collectCount 收藏量
-     * @param commentCount 评论数
-     * @return 热度分数
-     */
-    Double calculateHotScore(Integer clickCount, Integer likeCount, Integer collectCount, Integer commentCount);
-
-    /**
      * 获取攻略详情（点击量+1）
      *
      * @param id 攻略ID

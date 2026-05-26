@@ -202,9 +202,9 @@ Business enums use `getValue()` / `getEnumByValue()` pattern — each has a `val
 | `/` | HomePage | Latest/hot strategy feed with tag sidebar |
 | `/strategy/:id` | StrategyDetail | Strategy detail with comments |
 | `/create-strategy` | CreateStrategy | Create new strategy |
-| `/my-strategies` | MyStrategies | User's own strategies (passed/pending/rejected/collect) |
+| `/my-strategies` | MyStrategies | User's own strategies (table with status column) |
 | `/location/:locationId` | LocationStrategies | Strategies by location, with official section |
-| `/profile` | UserProfile | Own profile page |
+| `/profile` | UserProfile | Own profile page (strategies + collects tabs) |
 | `/user/:userId/profile` | UserProfile | Other user's profile page |
 | `/profile/edit` | UserEdit | Edit profile |
 | `/my-follows` | MyFollow | Follows/followers list |
@@ -239,7 +239,7 @@ Types are split across four locations:
 - `env.d.ts` — references Vite client types and `@amap/amap-jsapi-types`
 
 ### UI Pattern: Strategy Card List
-Strategy lists are rendered as `.strategy-card-horizontal` cards. The card HTML/CSS pattern is **duplicated independently** across 5 pages (HomePage, LocationStrategiesPage, MyStrategiesPage, UserProfilePage, AllStrategiesPage) rather than extracted into a shared component. Each page has its own scoped CSS. The homepage is the reference design — card structure: user row → title → summary → images → tags → location + stats row.
+Strategy lists are rendered as `.strategy-card-horizontal` cards. The card HTML/CSS pattern is **duplicated independently** across pages (HomePage, LocationStrategiesPage, UserProfilePage, AllStrategiesPage) rather than extracted into a shared component. Each page has its own scoped CSS. The homepage is the reference design — card structure: user row → title → summary → images → tags → location + stats row. Notable exception: **MyStrategiesPage** uses an `a-table` instead of cards.
 
 ### AI Chat
 - `TravelAiService` interface annotated with LangChain4j `@SystemMessage` / `@MemoryId`

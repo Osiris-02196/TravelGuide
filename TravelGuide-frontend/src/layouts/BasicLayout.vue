@@ -75,7 +75,6 @@
           <a-cascader
             v-model:value="selectedLocation"
             :options="provinceOptions"
-            :load-data="loadCityData"
             placeholder="选择城市"
             change-on-select
             @change="handleLocationChange"
@@ -168,34 +167,33 @@ async function loadProvinces() {
   try {
     const res = await listProvinces()
     if (res.data?.code === 0 && res.data?.data) {
-      provinceOptions.value = res.data.data.map((p: API.LocationVO) => ({
-        value: p.id,
-        label: p.locationName,
-        isLeaf: false,
-      }))
+      // 并行加载所有城市的子级数据
+      const provinceOptionsWithChildren = await Promise.all(
+        res.data.data.map(async (p: API.LocationVO) => {
+          const option: any = {
+            value: p.id,
+            label: p.locationName,
+            isLeaf: false,
+          }
+          try {
+            const cityRes = await listCities({ provinceId: p.id as number })
+            if (cityRes.data?.code === 0 && cityRes.data?.data) {
+              option.children = cityRes.data.data.map((c: API.LocationVO) => ({
+                value: c.id,
+                label: c.locationName,
+                isLeaf: true,
+              }))
+            }
+          } catch {
+            // 单个省份加载失败不影响其他省份
+          }
+          return option
+        })
+      )
+      provinceOptions.value = provinceOptionsWithChildren
     }
   } catch {
     console.error('加载省份失败')
-  }
-}
-
-async function loadCityData(selectedOptions: any) {
-  const targetOption = selectedOptions[selectedOptions.length - 1]
-  targetOption.loading = true
-  try {
-    const provinceId = typeof targetOption.value === 'number' ? targetOption.value : Number(targetOption.value)
-    const res = await listCities({ provinceId })
-    if (res.data?.code === 0 && res.data?.data) {
-      targetOption.children = res.data.data.map((c: API.LocationVO) => ({
-        value: c.id,
-        label: c.locationName,
-        isLeaf: true,
-      }))
-    }
-  } catch {
-    console.error('加载城市失败')
-  } finally {
-    targetOption.loading = false
   }
 }
 
@@ -206,20 +204,20 @@ function handleSearch(value: string) {
 
 function handleLocationChange(value: string[]) {
   if (!value || value.length === 0) return
-  // Only navigate when a city (second level) is selected, not when province (first level) is clicked
-  if (value.length < 2) return
-  const provinceOpt = provinceOptions.value.find(
-    (p) => String(p.value) === String(value[0])
-  )
-  if (!provinceOpt || !provinceOpt.children) return
-  const cityOpt = provinceOpt.children.find(
-    (c: any) => String(c.value) === String(value[1])
-  )
-  if (cityOpt) {
+  if (value.length >= 1) {
+    const provinceOpt = provinceOptions.value.find(
+      (p) => String(p.value) === String(value[0])
+    )
+    if (!provinceOpt) return
+    // 如果有城市（第二级）则用城市跳转，否则用省份
+    const locationId = value.length >= 2 ? value[1] : value[0]
+    const label = value.length >= 2
+      ? provinceOpt.children?.find((c: any) => String(c.value) === String(value[1]))?.label
+      : provinceOpt.label
     router.push({
       name: 'locationStrategies',
-      params: { locationId: String(cityOpt.value) },
-      query: { name: cityOpt.label },
+      params: { locationId: String(locationId) },
+      query: { name: label || '' },
     })
   }
 }

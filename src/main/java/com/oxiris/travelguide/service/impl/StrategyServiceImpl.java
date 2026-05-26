@@ -8,6 +8,7 @@ import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryColumn;
 import com.mybatisflex.core.query.QueryCondition;
 import com.mybatisflex.core.query.QueryWrapper;
+import com.mybatisflex.core.update.UpdateChain;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 import com.oxiris.travelguide.common.ErrorCode;
 import com.oxiris.travelguide.exception.BusinessException;
@@ -52,6 +53,14 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 public class StrategyServiceImpl extends ServiceImpl<StrategyMapper, Strategy> implements StrategyService {
+
+    /**
+     * 热度分 SQL 表达式拼接。各参数为对应计数器的 SQL 表达式（不含权重），
+     * 修改权重或公式时只需改此方法。
+     */
+    public static String hotScoreSql(String clickExpr, String likeExpr, String collectExpr, String commentExpr) {
+        return clickExpr + " * 0.1 + " + likeExpr + " * 0.2 + " + collectExpr + " * 0.3 + " + commentExpr + " * 0.4";
+    }
 
     @Resource
     private CosManager cosManager;
@@ -324,29 +333,23 @@ public class StrategyServiceImpl extends ServiceImpl<StrategyMapper, Strategy> i
     }
 
     @Override
-    public Double calculateHotScore(Integer clickCount, Integer likeCount, Integer collectCount, Integer commentCount) {
-        // 热度公式: hotScore = clickCount*0.1 + likeCount*0.2 + collectCount*0.3 + commentCount*0.4
-        double c = clickCount != null ? clickCount : 0;
-        double l = likeCount != null ? likeCount : 0;
-        double col = collectCount != null ? collectCount : 0;
-        double com = commentCount != null ? commentCount : 0;
-        return c * 0.1 + l * 0.2 + col * 0.3 + com * 0.4;
-    }
-
-    @Override
     public StrategyVO getStrategyDetail(Long id) {
         // 1. 校验参数
         ThrowUtils.throwIf(id == null || id <= 0, ErrorCode.PARAMS_ERROR);
         // 2. 查询攻略
         Strategy strategy = this.getById(id);
         ThrowUtils.throwIf(strategy == null, ErrorCode.NOT_FOUND_ERROR, "攻略不存在");
-        // 3. 点击量+1
-        strategy.setClickCount(strategy.getClickCount() + 1);
-        // 4. 更新热度分数
-        Double hotScore = calculateHotScore(strategy.getClickCount(), strategy.getLikeCount(),
-                strategy.getCollectCount(), strategy.getCommentCount());
-        strategy.setHotScore(hotScore);
-        this.updateById(strategy);
+        // 3. 原子更新点击量和热度分
+        UpdateChain.of(Strategy.class)
+                .setRaw(Strategy::getClickCount, "COALESCE(clickCount, 0) + 1")
+                .setRaw(Strategy::getHotScore, hotScoreSql(
+                        "COALESCE(clickCount, 0) + 1",
+                        "COALESCE(likeCount, 0)",
+                        "COALESCE(collectCount, 0)",
+                        "COALESCE(commentCount, 0)"
+                ))
+                .where(Strategy::getId).eq(id)
+                .update();
         // 5. 转换VO并注入用户信息
         StrategyVO strategyVO = getStrategyVO(strategy);
         if (strategy.getUserId() != null) {
@@ -488,10 +491,12 @@ public class StrategyServiceImpl extends ServiceImpl<StrategyMapper, Strategy> i
         // 3. 校验当前状态必须为待审核
         ThrowUtils.throwIf(!StrategyStatusEnum.PENDING.getValue().equals(strategy.getStrategyStatus()),
                 ErrorCode.OPERATION_ERROR, "只能审核待审核状态的攻略");
-        // 4. 更新审核状态
+        // 4. 条件更新审核状态（WHERE id = ? AND strategy_status = 0），避免并发覆盖
         strategy.setStrategyStatus(status);
-        boolean result = this.updateById(strategy);
-        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "审核攻略失败");
+        int affected = mapper.updateByQuery(strategy, QueryWrapper.create()
+                .eq(Strategy::getId, id)
+                .eq(Strategy::getStrategyStatus, StrategyStatusEnum.PENDING.getValue()));
+        ThrowUtils.throwIf(affected == 0, ErrorCode.OPERATION_ERROR, "审核失败，攻略状态已被其他管理员修改");
         return true;
     }
 
@@ -570,13 +575,17 @@ public class StrategyServiceImpl extends ServiceImpl<StrategyMapper, Strategy> i
         like.setStrategyId(id);
         boolean saveResult = strategyLikeMapper.insert(like, true) > 0;
         ThrowUtils.throwIf(!saveResult, ErrorCode.OPERATION_ERROR, "点赞失败");
-        // 6. 更新攻略点赞数
-        strategy.setLikeCount(strategy.getLikeCount() != null ? strategy.getLikeCount() + 1 : 1);
-        // 7. 更新热度分数
-        Double hotScore = calculateHotScore(strategy.getClickCount(), strategy.getLikeCount(),
-                strategy.getCollectCount(), strategy.getCommentCount());
-        strategy.setHotScore(hotScore);
-        boolean updateResult = this.updateById(strategy);
+        // 6. 原子更新攻略点赞数和热度分数
+        boolean updateResult = UpdateChain.of(Strategy.class)
+                .setRaw(Strategy::getLikeCount, "COALESCE(likeCount, 0) + 1")
+                .setRaw(Strategy::getHotScore, hotScoreSql(
+                        "COALESCE(clickCount, 0)",
+                        "COALESCE(likeCount, 0) + 1",
+                        "COALESCE(collectCount, 0)",
+                        "COALESCE(commentCount, 0)"
+                ))
+                .where(Strategy::getId).eq(id)
+                .update();
         ThrowUtils.throwIf(!updateResult, ErrorCode.OPERATION_ERROR, "更新点赞数失败");
         // 8. 发送通知给攻略作者
         if (!strategy.getUserId().equals(loginUser.getId())) {
@@ -611,13 +620,17 @@ public class StrategyServiceImpl extends ServiceImpl<StrategyMapper, Strategy> i
         collect.setStrategyId(id);
         boolean saveResult = strategyCollectMapper.insert(collect, true) > 0;
         ThrowUtils.throwIf(!saveResult, ErrorCode.OPERATION_ERROR, "收藏失败");
-        // 6. 更新攻略收藏数
-        strategy.setCollectCount(strategy.getCollectCount() + 1);
-        // 7. 更新热度分数
-        Double hotScore = calculateHotScore(strategy.getClickCount(), strategy.getLikeCount(),
-                strategy.getCollectCount(), strategy.getCommentCount());
-        strategy.setHotScore(hotScore);
-        boolean updateResult = this.updateById(strategy);
+        // 6. 原子更新攻略收藏数和热度分
+        boolean updateResult = UpdateChain.of(Strategy.class)
+                .setRaw(Strategy::getCollectCount, "COALESCE(collectCount, 0) + 1")
+                .setRaw(Strategy::getHotScore, hotScoreSql(
+                        "COALESCE(clickCount, 0)",
+                        "COALESCE(likeCount, 0)",
+                        "COALESCE(collectCount, 0) + 1",
+                        "COALESCE(commentCount, 0)"
+                ))
+                .where(Strategy::getId).eq(id)
+                .update();
         ThrowUtils.throwIf(!updateResult, ErrorCode.OPERATION_ERROR, "更新收藏数失败");
         // 8. 发送通知给攻略作者
         if (!strategy.getUserId().equals(loginUser.getId())) {
@@ -649,14 +662,17 @@ public class StrategyServiceImpl extends ServiceImpl<StrategyMapper, Strategy> i
         // 5. 删除收藏记录
         boolean deleteResult = strategyCollectMapper.deleteById(collect.getId()) > 0;
         ThrowUtils.throwIf(!deleteResult, ErrorCode.OPERATION_ERROR, "取消收藏失败");
-        // 6. 更新攻略收藏数（减1，最小为0）
-        int newCollectCount = Math.max(strategy.getCollectCount() - 1, 0);
-        strategy.setCollectCount(newCollectCount);
-        // 7. 更新热度分数
-        Double hotScore = calculateHotScore(strategy.getClickCount(), strategy.getLikeCount(),
-                newCollectCount, strategy.getCommentCount());
-        strategy.setHotScore(hotScore);
-        boolean updateResult = this.updateById(strategy);
+        // 6. 原子更新攻略收藏数和热度分（减1，最小为0）
+        boolean updateResult = UpdateChain.of(Strategy.class)
+                .setRaw(Strategy::getCollectCount, "GREATEST(COALESCE(collectCount, 0) - 1, 0)")
+                .setRaw(Strategy::getHotScore, hotScoreSql(
+                        "COALESCE(clickCount, 0)",
+                        "COALESCE(likeCount, 0)",
+                        "GREATEST(COALESCE(collectCount, 0) - 1, 0)",
+                        "COALESCE(commentCount, 0)"
+                ))
+                .where(Strategy::getId).eq(id)
+                .update();
         ThrowUtils.throwIf(!updateResult, ErrorCode.OPERATION_ERROR, "更新收藏数失败");
         return true;
     }

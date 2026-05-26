@@ -89,7 +89,6 @@
           <a-cascader
             v-model:value="formState.locations"
             :options="provinceOptions"
-            :load-data="loadCityData"
             placeholder="选择省市"
             change-on-select
             style="width: 100%"
@@ -157,42 +156,48 @@ const rules = {
   strategyContent: [{ required: true, message: '请输入攻略内容' }],
 }
 
-const provinceOptions = ref<any[]>([])
+interface CascaderOption {
+  value: string | number | undefined
+  label: string | undefined
+  isLeaf: boolean
+  children?: CascaderOption[]
+}
+
+const provinceOptions = ref<CascaderOption[]>([])
 
 onMounted(async () => {
   try {
     const res = await listProvinces()
     if (res.data?.code === 0 && res.data?.data) {
-      provinceOptions.value = res.data.data.map((p) => ({
-        value: p.id,
-        label: p.locationName,
-        isLeaf: false,
-      }))
+      // 并行加载所有城市的子级数据
+      const provinceOptionsWithChildren = await Promise.all(
+        res.data.data.map(async (p) => {
+          const option: CascaderOption = {
+            value: p.id,
+            label: p.locationName,
+            isLeaf: false,
+          }
+          try {
+            const cityRes = await listCities({ provinceId: p.id as number })
+            if (cityRes.data?.code === 0 && cityRes.data?.data) {
+              option.children = cityRes.data.data.map((c) => ({
+                value: c.id,
+                label: c.locationName,
+                isLeaf: true,
+              }))
+            }
+          } catch {
+            // 单个省份加载失败不影响其他省份
+          }
+          return option
+        })
+      )
+      provinceOptions.value = provinceOptionsWithChildren
     }
   } catch {
     // ignore
   }
 })
-
-async function loadCityData(selectedOptions: any) {
-  const targetOption = selectedOptions[selectedOptions.length - 1]
-  targetOption.loading = true
-  try {
-    const provinceId = typeof targetOption.value === 'number' ? targetOption.value : Number(targetOption.value)
-    const res = await listCities({ provinceId })
-    if (res.data?.code === 0 && res.data?.data) {
-      targetOption.children = res.data.data.map((c) => ({
-        value: c.id,
-        label: c.locationName,
-        isLeaf: true,
-      }))
-    }
-  } catch {
-    // ignore
-  } finally {
-    targetOption.loading = false
-  }
-}
 
 function beforeUpload(file: File) {
   const isImage = file.type.startsWith('image/')
