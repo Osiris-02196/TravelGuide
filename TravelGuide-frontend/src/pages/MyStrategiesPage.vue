@@ -92,12 +92,12 @@
         </div>
 
         <!-- 删除/取消收藏按钮 -->
-        <div v-if="currentTab === 'passed'" class="card-delete-row">
+        <div v-if="currentTab === 'passed'" class="card-delete-row" @click.stop>
           <a-popconfirm title="确定删除此攻略？" ok-text="确定" cancel-text="取消" @confirm="handleDelete(item)">
             <a-button danger size="small">删除</a-button>
           </a-popconfirm>
         </div>
-        <div v-else-if="currentTab === 'collect'" class="card-delete-row">
+        <div v-else-if="currentTab === 'collect'" class="card-delete-row" @click.stop>
           <a-popconfirm title="确定取消收藏？" ok-text="确定" cancel-text="取消" @confirm="handleUncollect(item)">
             <a-button type="primary" danger size="small">取消收藏</a-button>
           </a-popconfirm>

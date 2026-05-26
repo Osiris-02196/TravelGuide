@@ -88,6 +88,11 @@ const routes: RouteRecordRaw[] = [
     name: 'register',
     component: () => import('@/pages/user/UserRegisterPage.vue'),
   },
+  {
+    path: '/mobile-upload',
+    name: 'mobileUpload',
+    component: () => import('@/pages/MobileUploadPage.vue'),
+  },
 ]
 
 const router = createRouter({

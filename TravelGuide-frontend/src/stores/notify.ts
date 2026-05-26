@@ -37,10 +37,17 @@ export const useNotifyStore = defineStore('notify', () => {
     ws.onmessage = (ev) => {
       try {
         const data = JSON.parse(ev.data as string)
+        // 未读数量推送
         if (data?.type === 'unreadCount') {
           unreadCount.value = Number(data.unreadCount) || 0
           return
         }
+        // 上传进度推送 — 通过 CustomEvent 转发给页面组件
+        if (data?.type === 'uploadProgress' || data?.type === 'uploadComplete') {
+          window.dispatchEvent(new CustomEvent('ws-upload', { detail: data }))
+          return
+        }
+        // 普通消息通知
         unreadCount.value = (unreadCount.value || 0) + 1
         const item: API.NotifyVO = {
           id: data.id,

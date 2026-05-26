@@ -33,6 +33,9 @@ server:
     session:
       cookie:
         max-age: 2592000
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 50MB
   # 增加超时配置
   tomcat:
     connection-timeout: 300000

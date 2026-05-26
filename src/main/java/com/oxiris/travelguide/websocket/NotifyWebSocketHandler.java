@@ -115,6 +115,35 @@ public class NotifyWebSocketHandler extends TextWebSocketHandler {
     }
 
     /**
+     * 向指定用户推送任意 JSON 消息（供上传会话等场景复用）
+     *
+     * @param userId 接收者ID
+     * @param data   消息数据（自动序列化为 JSON）
+     */
+    public void pushMessage(Long userId, Map<String, Object> data) {
+        if (userId == null || data == null || data.isEmpty()) {
+            return;
+        }
+        String jsonStr = JSONUtil.toJsonStr(data);
+        WebSocketSession session = SESSION_MAP.get(userId);
+        if (session != null && session.isOpen()) {
+            try {
+                session.sendMessage(new TextMessage(jsonStr));
+                log.debug("WebSocket 推送消息成功: userId={}, data={}", userId, data);
+            } catch (IOException e) {
+                log.error("WebSocket 推送消息失败: userId={}, error={}", userId, e.getMessage());
+                SESSION_MAP.remove(userId);
+                try {
+                    session.close();
+                } catch (IOException ignored) {
+                }
+            }
+        } else {
+            log.debug("用户未连接 WebSocket，跳过推送: userId={}", userId);
+        }
+    }
+
+    /**
      * 推送未读数量更新
      *
      * @param receiverId  接收者ID

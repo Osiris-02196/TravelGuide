@@ -133,6 +133,18 @@ declare namespace API {
     message?: string
   }
 
+  type BaseResponseListString = {
+    code?: number
+    data?: string[]
+    message?: string
+  }
+
+  type BaseResponseVoid = {
+    code?: number
+    data?: null
+    message?: string
+  }
+
   type BaseResponseUser = {
     code?: number
     data?: User
